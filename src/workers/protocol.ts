@@ -8,6 +8,8 @@ export interface SheetInfo {
   name: string
   /** Data rows, header excluded. */
   rowCount: number
+  /** Index of the first column (0 = A). */
+  firstCol: number
   headers: string[]
   /** Column keys aligned with `headers`. */
   keys: string[]

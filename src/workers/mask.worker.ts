@@ -34,7 +34,7 @@ function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): Work
       const row = rows[r] ?? []
       preview.push(h.headers.map((_, i) => cellText(row[h.firstCol + i])))
     }
-    sheets.push({ name, rowCount: h.lastRow - h.headerRow, headers: h.headers, keys, preview })
+    sheets.push({ name, rowCount: h.lastRow - h.headerRow, firstCol: h.firstCol, headers: h.headers, keys, preview })
 
     h.headers.forEach((header, i) => {
       const c = h.firstCol + i

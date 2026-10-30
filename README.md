@@ -48,7 +48,8 @@ flowchart LR
 | 🎯 **Nhất quán** | Cùng một giá trị luôn ra cùng một mã, kể cả ở sheet khác có cùng tên cột. AI vẫn đếm, nhóm, so sánh đúng. |
 | 🧰 **9 cách che** | Mã ẩn danh, dữ liệu giả, che một phần, xóa trắng, nhân hệ số, làm tròn, khoảng giá trị, dịch ngày, chỉ giữ tháng. |
 | 🪄 **Tự nhận diện cột** | Gợi ý loại dữ liệu từ tên cột (Họ tên, SĐT, CCCD…) và nội dung (email, SĐT Việt Nam, ngày tháng). |
-| 👀 **Xem trước trực tiếp** | Ví dụ cho từng cột và bảng "Gốc / Sau khi che" trước khi xuất file. |
+| 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn. Cột đã chọn hiển thị ngay "AI sẽ thấy gì". |
+| 👀 **Xem trước trực tiếp** | Mỗi cách che có ví dụ thật lấy từ dữ liệu của bạn, chuyển nhanh giữa "AI sẽ thấy" và "Dữ liệu gốc". |
 | ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
 | 🛡️ **Kiểm tra an toàn** | Cảnh báo SĐT/email/CCCD còn sót ở cột chưa che; từ chối khi dữ liệu gốc đã có chuỗi giống mã; báo mã do AI tự bịa ra. |
 | ⚡ **File lớn** | Xử lý trong Web Worker, có thanh tiến trình, UI không bị treo. |
@@ -72,12 +73,13 @@ flowchart LR
 
 ### 📖 Cách dùng
 
-<img src="docs/screenshot-columns.jpg" alt="Chọn cột và cách che" width="820" />
+<img src="docs/screenshot-columns.jpg" alt="Bấm vào tiêu đề cột để chọn cột cần ẩn danh" width="820" />
 
 1. **Che dữ liệu**
    - Mở **[MaskSheet](https://marksheet-two-beta.vercel.app/)** rồi kéo thả file `.xlsx`, `.xls` hoặc `.csv` vào (hoặc bấm *Thử với file mẫu*).
-   - Tick các cột nhạy cảm (hoặc bấm *Chọn theo gợi ý*), sau đó chọn **loại dữ liệu** và **cách che**.
-   - Bật *Sau khi che* ở bảng xem trước để kiểm tra, rồi bấm **Che dữ liệu**.
+   - **Bấm vào tiêu đề cột** (hoặc bất kỳ ô nào) trên bảng để chọn cột cần ẩn danh, giống chọn cột trong Excel. Bấm lại cột đang chọn để bỏ chọn. Hoặc bấm *Chọn theo gợi ý*.
+   - Ở khung bên dưới bảng, chọn **loại dữ liệu** và **cách ẩn danh**. Mỗi cách đều có ví dụ thật lấy từ file của bạn.
+   - Bảng hiển thị luôn *AI sẽ thấy gì*. Kiểm tra xong thì bấm **Che dữ liệu**.
    - Tải về 2 file:
      - `…_masked.xlsx`: gửi file này cho AI.
      - `…_mapping_PRIVATE.json`: giữ riêng, **không gửi AI**.
@@ -87,7 +89,7 @@ flowchart LR
    - Dán câu trả lời của AI, hoặc tải file kết quả AI trả về.
    - Nhận lại văn bản hoặc file với giá trị thật.
 
-<img src="docs/screenshot-preview.jpg" alt="Xem trước sau khi che" width="820" />
+<img src="docs/screenshot-inspector.jpg" alt="Chọn loại dữ liệu và cách ẩn danh cho cột" width="820" />
 
 ### 🔐 Quyền riêng tư & bảo mật
 
@@ -181,7 +183,8 @@ MaskSheet replaces sensitive values in Excel/CSV files with anonymous codes or r
 - 🎯 **Consistent.** The same value always gets the same code, across columns and sheets, so the AI can still count, group and compare.
 - 🧰 **9 masking methods**, listed below.
 - 🪄 **Auto-detects** names, phones, emails, national IDs, addresses, companies, amounts and dates.
-- 👀 **Live preview.** Per-column examples plus an "Original / Masked" table.
+- 🖱️ **Excel-like column picking.** The file is shown as a spreadsheet; click column headers (A, B, C…) to select them and instantly see what the AI will get.
+- 👀 **Live preview.** Every method shows a real example taken from your data.
 - ↺ **Restore** from pasted AI text or from returned `.xlsx`/`.csv` files.
 - 🛡️ **Safety checks.** Warns about PII left in unmasked columns, refuses when the data already contains code-like text, and reports codes the AI invented.
 - ⚡ **Web Workers** with progress, so large files don't freeze the page.
@@ -205,7 +208,7 @@ All amount columns share one factor and all date columns share one offset, so cr
 
 ### How to use
 
-1. **Mask:** open a file, tick sensitive columns, pick a type and method, then click **Mask data**. Download `_masked.xlsx` (for the AI) and `_mapping_PRIVATE.json` (keep it private).
+1. **Mask:** open a file, click the sensitive columns in the spreadsheet, pick a type and method below it, then click **Mask data**. Download `_masked.xlsx` (for the AI) and `_mapping_PRIVATE.json` (keep it private).
 2. **Ask AI:** upload the masked file to your AI assistant.
 3. **Restore:** in the **Restore** tab, load the mapping, then paste the AI's answer or upload its result file.
 

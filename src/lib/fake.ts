@@ -1,5 +1,5 @@
 import { stripDiacritics } from './normalize'
-import type { DataType } from './types'
+import { METHODS, type DataType, type Method } from './types'
 
 /**
  * Realistic but fake Vietnamese values. Each generator maps an index in [0, size) to a
@@ -111,4 +111,9 @@ export function makeFaker(type: FakeType, random: () => number, isTaken: (value:
       if (!isTaken(value)) return value
     }
   }
+}
+
+/** Methods available for a data type ("fake" only where a generator exists). */
+export function methodsFor(type: DataType): Method[] {
+  return METHODS[type].filter((m) => m !== 'fake' || canFake(type))
 }
