@@ -1,3 +1,4 @@
+import { unzipSync, zipSync } from 'fflate'
 import * as XLSX from 'xlsx'
 import { formatOf, type FileFormat } from './fileName'
 
@@ -32,6 +33,9 @@ export function writeWorkbook(wb: XLSX.WorkBook, format: FileFormat): Uint8Array
     const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { blankrows: true })
     return new TextEncoder().encode('\uFEFF' + csv)
   }
+  // SheetJS's own DEFLATE compresses about 3× worse than Excel, which made masked files
+  // bigger than the original. Re-zip its output with fflate. (Asking SheetJS for an
+  // uncompressed file instead is much slower to write.)
   const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx', compression: true }) as ArrayBuffer
-  return new Uint8Array(out)
+  return zipSync(unzipSync(new Uint8Array(out)), { level: 6 })
 }
