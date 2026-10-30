@@ -76,8 +76,10 @@ export const en: Dict = {
   noneSelected: 'No column selected',
   processing: 'Processing… {pct}%',
 
-  gridHelp: 'Click a column header (A, B, C…) or any cell to choose the columns to anonymize. Click a selected column again to unselect it.',
-  gridHelpShort: 'Click a column to select it',
+  gridHelp: 'Click a column header or any cell: the column is selected and a small panel opens to choose how to anonymize it. Click the ✓ box in the header to switch it on/off without opening the panel.',
+  gridHelpShort: 'Click a column to select and edit it',
+  done: 'Done',
+  quickToggle: 'Quick on/off',
   viewAi: 'What AI sees',
   viewOriginal: 'Original data',
   viewHint: '"What AI sees" is an illustration of the masked result. Code numbers and fake values may differ slightly in the real file.',

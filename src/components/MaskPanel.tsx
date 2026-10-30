@@ -10,6 +10,7 @@ import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '
 import type { MaskRequest, MaskResponse, WorkbookInfo, WorkerError } from '../workers/protocol'
 import { ColumnGrid } from './ColumnGrid'
 import { ColumnInspector } from './ColumnInspector'
+import { Popover } from './Popover'
 import { FileDropzone } from './FileDropzone'
 import { CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon, WandIcon, XIcon } from './icons'
 import { Hint, Tooltip } from './Tooltip'
@@ -194,12 +195,16 @@ export function MaskPanel() {
     })
   }
 
-  /** Click on a column: select + focus it; clicking the focused column again toggles it. */
-  const pick = (key: string) => {
-    const cfg = configs[key]
-    if (key === activeKey) update(key, { enabled: !cfg.enabled })
-    else if (!cfg.enabled) update(key, { enabled: true })
-    setActiveKey(key)
+  /** Click on a column: select it and open its settings popup (click again to close). */
+  const open = (key: string) => {
+    if (!configs[key].enabled) update(key, { enabled: true })
+    setActiveKey((cur) => (cur === key ? null : key))
+  }
+
+  /** Header checkbox: switch a column on/off without opening the popup. */
+  const toggle = (key: string) => {
+    update(key, { enabled: !configs[key].enabled })
+    if (activeKey === key) setActiveKey(null)
   }
 
   const setEnabled = (isOn: (key: string) => boolean) => {
@@ -210,7 +215,7 @@ export function MaskPanel() {
   const selectSuggested = () => {
     const suggested = info?.columns.filter((c) => c.suggestion).map((c) => c.key) ?? []
     setEnabled((k) => suggested.includes(k))
-    if (suggested.length) setActiveKey(suggested[0])
+    setActiveKey(null)
   }
 
   const mask = () => {
@@ -337,7 +342,8 @@ export function MaskPanel() {
                 columns={info.columns}
                 configs={configs}
                 activeKey={activeKey}
-                onPick={pick}
+                onOpen={open}
+                onToggle={toggle}
                 showOriginal={showOriginal}
               />
 
@@ -353,6 +359,7 @@ export function MaskPanel() {
                   return (
                     <span
                       key={c.key}
+                      data-column-chip
                       className={cx(
                         'inline-flex items-center overflow-hidden rounded-full border text-xs font-medium transition',
                         active
@@ -380,23 +387,6 @@ export function MaskPanel() {
               </div>
             </div>
 
-            {/* Inspector for the focused column */}
-            <div className="border-t border-slate-200 bg-slate-50/60 p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-950/40">
-              {activeColumn ? (
-                <ColumnInspector
-                  key={activeColumn.key}
-                  column={activeColumn}
-                  config={configs[activeColumn.key]}
-                  sharedPrefix={prefixUse(configs[activeColumn.key].prefix) > 1}
-                  onChange={(patch) => update(activeColumn.key, patch)}
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <span className="flex size-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm dark:bg-slate-900">👆</span>
-                  <p className="max-w-md text-sm text-slate-500 dark:text-slate-400">{t('inspectorEmpty')}</p>
-                </div>
-              )}
-            </div>
           </Card>
 
           {/* Sticky action bar */}
@@ -422,6 +412,24 @@ export function MaskPanel() {
             </div>
           </div>
         </>
+      )}
+
+      {info && activeColumn && stage !== 'empty' && stage !== 'loading' && (
+        <Popover
+          anchorKey={activeColumn.key}
+          anchor={() => document.querySelector<HTMLElement>(`[data-column-grid] th[data-key="${CSS.escape(activeColumn.key)}"]`)}
+          ignoreOutside={(el) => !!el.closest('[data-column-grid] th, [data-column-grid] td, [data-column-chip]')}
+          onClose={() => setActiveKey(null)}
+          label={activeColumn.header}
+        >
+          <ColumnInspector
+            column={activeColumn}
+            config={configs[activeColumn.key]}
+            sharedPrefix={prefixUse(configs[activeColumn.key].prefix) > 1}
+            onChange={(patch) => update(activeColumn.key, patch)}
+            onClose={() => setActiveKey(null)}
+          />
+        </Popover>
       )}
 
       {/* Step 3: download */}

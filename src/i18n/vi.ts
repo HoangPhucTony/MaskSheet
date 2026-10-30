@@ -79,8 +79,10 @@ export const vi = {
   processing: 'Đang xử lý… {pct}%',
 
   // Spreadsheet column picker
-  gridHelp: 'Bấm vào tiêu đề cột (A, B, C…) hoặc bất kỳ ô nào để chọn cột cần ẩn danh. Bấm lần nữa vào cột đang chọn để bỏ chọn.',
-  gridHelpShort: 'Bấm vào cột để chọn',
+  gridHelp: 'Bấm vào tiêu đề cột hoặc bất kỳ ô nào: cột được chọn và một bảng nhỏ hiện ra để chỉnh cách ẩn danh. Bấm ô vuông ✓ trên tiêu đề để bật/tắt nhanh mà không mở bảng.',
+  gridHelpShort: 'Bấm vào cột để chọn và chỉnh',
+  done: 'Xong',
+  quickToggle: 'Bật/tắt nhanh',
   viewAi: 'AI sẽ thấy',
   viewOriginal: 'Dữ liệu gốc',
   viewHint: '"AI sẽ thấy" hiển thị minh họa sau khi che. Số thứ tự mã và dữ liệu giả có thể khác file thật một chút.',

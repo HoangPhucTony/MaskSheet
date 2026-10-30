@@ -13,8 +13,10 @@ interface Props {
   columns: ColumnInfo[]
   configs: Record<string, ColumnConfig>
   activeKey: string | null
-  /** Click on a column (header or any cell). */
-  onPick: (key: string) => void
+  /** Click on a column (header or any cell): select it and open its settings. */
+  onOpen: (key: string) => void
+  /** Click on the header checkbox: switch the column on/off without opening anything. */
+  onToggle: (key: string) => void
   showOriginal: boolean
 }
 
@@ -22,7 +24,7 @@ interface Props {
  * The file shown as a spreadsheet. Columns are picked horizontally by clicking their
  * header or any of their cells; picked columns show what the AI will see.
  */
-export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOriginal }: Props) {
+export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onToggle, showOriginal }: Props) {
   const { t } = useI18n()
   const [activeSheet, setActiveSheet] = useState(0)
   const [hoverCol, setHoverCol] = useState<number | null>(null)
@@ -66,7 +68,7 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOr
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+    <div data-column-grid className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       <div ref={scrollRef} className="max-h-[30rem] overflow-auto" onMouseLeave={() => setHoverCol(null)}>
         <table className="w-max min-w-full border-separate border-spacing-0 text-sm select-none">
           <thead className="sticky top-0 z-20">
@@ -78,7 +80,7 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOr
                 return (
                   <th
                     key={c}
-                    onClick={() => onPick(key)}
+                    onClick={() => onOpen(key)}
                     onMouseEnter={() => setHoverCol(c)}
                     className={cx(
                       'cursor-pointer border-r border-b border-slate-200 px-2 py-1 text-center text-[11px] font-semibold tracking-wider transition-colors dark:border-slate-800',
@@ -104,11 +106,11 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOr
                 return (
                   <th
                     key={c}
-                    onClick={() => onPick(key)}
+                    onClick={() => onOpen(key)}
                     onMouseEnter={() => setHoverCol(c)}
                     aria-pressed={on}
                     data-key={key}
-                    title={on ? t('removeColumn') : t('clickToSelect')}
+                    title={t('clickToSelect')}
                     className={cx(
                       'min-w-[9rem] cursor-pointer border-r border-b px-3 py-2.5 text-left align-top font-semibold transition-colors',
                       on
@@ -120,16 +122,23 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOr
                     )}
                   >
                     <span className="flex items-center gap-2">
-                      <span
+                      <button
+                        type="button"
+                        aria-label={`${t('quickToggle')}: ${h}`}
+                        title={t('quickToggle')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggle(key)
+                        }}
                         className={cx(
-                          'flex size-4.5 shrink-0 items-center justify-center rounded-md border text-[11px] transition',
+                          'flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] transition hover:scale-110',
                           on
                             ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-300 bg-white text-transparent dark:border-slate-600 dark:bg-slate-800',
+                            : 'border-slate-300 bg-white text-transparent hover:border-emerald-500 dark:border-slate-600 dark:bg-slate-800',
                         )}
                       >
                         <CheckIcon />
-                      </span>
+                      </button>
                       <span className="truncate">{h || '—'}</span>
                     </span>
                     <span className="mt-1.5 block h-5">
@@ -163,7 +172,7 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onPick, showOr
                   return (
                     <td
                       key={c}
-                      onClick={() => onPick(key)}
+                      onClick={() => onOpen(key)}
                       onMouseEnter={() => setHoverCol(c)}
                       title={v}
                       className={cx(
