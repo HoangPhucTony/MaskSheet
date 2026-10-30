@@ -1,7 +1,7 @@
-import type { DataType, MoneyMode, StoredValue } from './types'
+import type { DataType, Method, StoredValue } from './types'
 
 export const MAPPING_FORMAT = 'masksheet-mapping'
-export const MAPPING_VERSION = 1
+export const MAPPING_VERSION = 2
 
 export interface MappingColumn {
   sheet: string
@@ -9,40 +9,51 @@ export interface MappingColumn {
   /** Excel column letter in that sheet. */
   column: string
   type: DataType
-  prefix: string
-  moneyMode?: MoneyMode
+  method: Method
+  /** Dictionary key for methods 'code' and 'fake'. */
+  dictionary?: string
 }
 
 export interface Dictionary {
-  /** Zero-padding width of the numeric part. */
+  /** Zero-padding width of the numeric part of codes. */
   width: number
-  /** entries[i] is the original value for code number i + 1. */
+  /** entries[i] is the original value for code number i + 1 (or for fakes[i]). */
   entries: StoredValue[]
+  /** Present for fake-data dictionaries: fakes[i] replaced entries[i]. */
+  fakes?: string[]
 }
 
 export interface MappingFile {
   format: typeof MAPPING_FORMAT
-  version: typeof MAPPING_VERSION
+  version: number
   warning: string
   createdAt: string
   sourceFile: string
   /** Output format of the masked file. */
   outputFormat: 'xlsx' | 'csv'
   columns: MappingColumn[]
-  /** prefix → dictionary */
+  /** Dictionary key (code prefix, or FAKE_<TYPE>) → dictionary. */
   dictionaries: Record<string, Dictionary>
-  /** Present when at least one money column was multiplied: masked = real × factor. */
+  /** Present when at least one amount column was multiplied: masked = real × factor. */
   money?: {
     factor: number
-    /** Header keys (see headerKey) of multiplied columns. */
+    /** Header keys (see columnKey) of multiplied columns. */
     multipliedHeaders: string[]
-    /** Header keys of rounded columns (irreversible). */
-    roundedHeaders: string[]
+  }
+  /** Present when at least one date column was shifted: masked = real + offsetDays. */
+  dates?: {
+    offsetDays: number
+    shiftedHeaders: string[]
   }
 }
 
 export const MAPPING_WARNING =
   'KEEP THIS FILE PRIVATE. Do NOT send it to any AI. It contains the original values. / GIỮ FILE NÀY CẨN THẬN, KHÔNG gửi cho AI. File chứa dữ liệu gốc.'
+
+/** Key of the shared dictionary used by all fake-data columns of one type. */
+export function fakeDictionaryKey(type: DataType): string {
+  return `FAKE_${type.toUpperCase()}`
+}
 
 export function formatCode(prefix: string, n: number, width: number): string {
   return `${prefix}_${String(n).padStart(width, '0')}`
@@ -63,7 +74,11 @@ function isStoredValue(x: unknown): x is StoredValue {
   return typeof x.w === 'string' && (x.z === undefined || typeof x.z === 'string')
 }
 
-/** Parse and validate a mapping file. Throws MappingError with a short reason. */
+function isStringArray(x: unknown): x is string[] {
+  return Array.isArray(x) && x.every((s) => typeof s === 'string')
+}
+
+/** Parse and validate a mapping file (versions 1 and 2). Throws MappingError with a short reason. */
 export function parseMapping(json: string): MappingFile {
   let data: unknown
   try {
@@ -72,24 +87,27 @@ export function parseMapping(json: string): MappingFile {
     throw new MappingError('not-json')
   }
   if (!isObject(data) || data.format !== MAPPING_FORMAT) throw new MappingError('not-mapping')
-  if (data.version !== MAPPING_VERSION) throw new MappingError('bad-version')
+  if (data.version !== 1 && data.version !== MAPPING_VERSION) throw new MappingError('bad-version')
   if (!isObject(data.dictionaries) || !Array.isArray(data.columns)) throw new MappingError('corrupt')
-  for (const [prefix, dict] of Object.entries(data.dictionaries)) {
-    if (!/^[A-Z][A-Z0-9_]*$/.test(prefix)) throw new MappingError('corrupt')
+  for (const [key, dict] of Object.entries(data.dictionaries)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key)) throw new MappingError('corrupt')
     if (!isObject(dict) || typeof dict.width !== 'number' || !Array.isArray(dict.entries)) {
       throw new MappingError('corrupt')
     }
     if (!dict.entries.every(isStoredValue)) throw new MappingError('corrupt')
+    if (dict.fakes !== undefined && !(isStringArray(dict.fakes) && dict.fakes.length === dict.entries.length)) {
+      throw new MappingError('corrupt')
+    }
   }
   if (data.money !== undefined) {
     const m = data.money
-    if (
-      !isObject(m) ||
-      typeof m.factor !== 'number' ||
-      !(m.factor > 0) ||
-      !Array.isArray(m.multipliedHeaders) ||
-      !Array.isArray(m.roundedHeaders)
-    ) {
+    if (!isObject(m) || typeof m.factor !== 'number' || !(m.factor > 0) || !isStringArray(m.multipliedHeaders)) {
+      throw new MappingError('corrupt')
+    }
+  }
+  if (data.dates !== undefined) {
+    const d = data.dates
+    if (!isObject(d) || !Number.isInteger(d.offsetDays) || !isStringArray(d.shiftedHeaders)) {
       throw new MappingError('corrupt')
     }
   }

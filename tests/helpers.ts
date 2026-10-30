@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 import { suggestPrefix } from '../src/lib/detectType'
 import { columnKey } from '../src/lib/normalize'
 import { cellText, rowsOf } from '../src/lib/sheet'
-import type { ColumnConfig, DataType, MoneyMode } from '../src/lib/types'
+import { METHODS, type ColumnConfig, type DataType } from '../src/lib/types'
 
 export function book(sheets: Record<string, unknown[][]>): XLSX.WorkBook {
   const wb = XLSX.utils.book_new()
@@ -23,7 +23,7 @@ export function values(wb: XLSX.WorkBook, sheet = wb.SheetNames[0]): unknown[][]
 export function col(
   header: string,
   type: DataType = 'custom',
-  extra: Partial<ColumnConfig> & { moneyMode?: MoneyMode } = {},
+  extra: Partial<ColumnConfig> = {},
   colIndex = 0,
 ): ColumnConfig {
   return {
@@ -32,7 +32,7 @@ export function col(
     enabled: true,
     type,
     prefix: suggestPrefix(type, header, colIndex),
-    moneyMode: 'code',
+    method: METHODS[type][0],
     ...extra,
   }
 }

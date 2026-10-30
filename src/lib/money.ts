@@ -24,6 +24,22 @@ export function roundSignificant(value: number, digits = 2): number {
   return Math.round(value / scale) * scale
 }
 
+function groupThousands(n: number): string {
+  return n.toLocaleString('en-US', { maximumFractionDigits: 6 })
+}
+
+/** Bucket an amount on a 1–2–5 scale: 7,425,000 → "5,000,000–10,000,000". */
+export function rangeLabel(value: number): string {
+  if (value === 0 || !Number.isFinite(value)) return String(value)
+  const abs = Math.abs(value)
+  const base = 10 ** Math.floor(Math.log10(abs))
+  const m = abs / base
+  const lower = m >= 5 ? 5 : m >= 2 ? 2 : 1
+  const upper = lower === 1 ? 2 : lower === 2 ? 5 : 10
+  const sign = value < 0 ? '-' : ''
+  return `${sign}${groupThousands(lower * base)}–${sign}${groupThousands(upper * base)}`
+}
+
 /** Real amount from a multiplied one. Rounded to 6 decimals to drop floating-point noise. */
 export function divideBack(masked: number, factor: number): number {
   return Math.round((masked / factor) * 1e6) / 1e6

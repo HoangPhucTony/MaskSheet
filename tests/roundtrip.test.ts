@@ -54,8 +54,8 @@ describe('round trip', () => {
   it('divides multiplied money columns back, also in totals the AI added', () => {
     const wb = book({ S: [['Price', 'Quantity', 'Revenue'], [125000, 40, 5000000], [45000, 120, 5400000]] })
     const configs = [
-      col('Price', 'money', { moneyMode: 'multiply' }),
-      col('Revenue', 'money', { moneyMode: 'multiply' }, 2),
+      col('Price', 'money', { method: 'multiply' }),
+      col('Revenue', 'money', { method: 'multiply' }, 2),
     ]
     const { masked, mapping, stats } = roundTrip(wb, configs)
     expect(values(masked).slice(1)).toEqual([
@@ -126,7 +126,7 @@ describe('sample.xlsx', () => {
       h.headers.forEach((header, i) => {
         const key = columnKey(header, h.firstCol + i)
         if (header.startsWith('Confidential') && !configs.some((c) => c.key === key)) {
-          configs.push({ key, header, enabled: true, type: 'custom', prefix: suggestPrefix('custom', header, i), moneyMode: 'code' })
+          configs.push({ key, header, enabled: true, type: 'custom', method: 'code', prefix: suggestPrefix('custom', header, i) })
         }
       })
     }

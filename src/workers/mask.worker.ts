@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import type * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx'
 import { detectType } from '../lib/detectType'
 import { readWorkbook, writeWorkbook, type FileFormat } from '../lib/io'
 import { maskWorkbook } from '../lib/masker'
@@ -22,7 +22,7 @@ function post(msg: MaskResponse, transfer: Transferable[] = []) {
 
 function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): WorkbookInfo {
   const sheets: SheetInfo[] = []
-  const columns = new Map<string, ColumnInfo & { _all: string[]; _numeric: number; _filled: number }>()
+  const columns = new Map<string, ColumnInfo & { _all: string[]; _numeric: number; _dates: number; _filled: number }>()
 
   for (const name of wb.SheetNames) {
     const h = headersOf(wb.Sheets[name])
@@ -40,7 +40,7 @@ function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): Work
       const c = h.firstCol + i
       let info = columns.get(keys[i])
       if (!info) {
-        info = { key: keys[i], header, colIndex: c, sheets: [], samples: [], suggestion: null, numericRatio: 0, _all: [], _numeric: 0, _filled: 0 }
+        info = { key: keys[i], header, colIndex: c, sheets: [], samples: [], suggestion: null, numericRatio: 0, _all: [], _numeric: 0, _dates: 0, _filled: 0 }
         columns.set(keys[i], info)
       }
       info.sheets.push(name)
@@ -50,16 +50,19 @@ function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): Work
         if (text.trim() === '') continue
         info._all.push(text)
         info._filled++
-        if (cell?.t === 'n') info._numeric++
+        if (cell?.t === 'n') {
+          info._numeric++
+          if (typeof cell.z === 'string' && XLSX.SSF.is_date(cell.z)) info._dates++
+        }
       }
     })
   }
 
   const list: ColumnInfo[] = []
-  for (const { _all, _numeric, _filled, ...info } of columns.values()) {
+  for (const { _all, _numeric, _dates, _filled, ...info } of columns.values()) {
     info.samples = [...new Set(_all)].slice(0, SAMPLE_DISPLAY)
     info.numericRatio = _filled ? _numeric / _filled : 0
-    info.suggestion = detectType(info.header, _all)
+    info.suggestion = detectType(info.header, _all, { dateRatio: _filled ? _dates / _filled : 0 })
     list.push(info)
   }
   return { fileName, format, sheets, columns: list }

@@ -1,5 +1,5 @@
 import type { Detection } from '../lib/detectType'
-import type { PrefixStats } from '../lib/masker'
+import type { DictionaryStats } from '../lib/masker'
 import type { ColumnConfig, MaskWarning } from '../lib/types'
 import type { UnmaskStats } from '../lib/unmasker'
 import type { FileFormat } from '../lib/io'
@@ -42,6 +42,7 @@ export type ErrorCode =
   | 'out-of-memory'
   | 'no-columns'
   | 'bad-prefix'
+  | 'bad-method'
   | 'collision'
   | 'mapping'
   | 'unknown'
@@ -70,7 +71,7 @@ export type MaskResponse =
       masked: ArrayBuffer
       format: FileFormat
       mappingJson: string
-      stats: PrefixStats[]
+      stats: DictionaryStats[]
       warnings: MaskWarning[]
       maskedCells: number
     }
@@ -89,7 +90,7 @@ export type UnmaskResponse =
 /** Map anything thrown in a worker to an error message the UI can translate. */
 export function toWorkerError(err: unknown, fallback: ErrorCode = 'unknown'): WorkerError {
   const e = err as { code?: unknown; details?: unknown; name?: string; message?: string }
-  if (typeof e?.code === 'string' && ['no-columns', 'bad-prefix', 'collision'].includes(e.code)) {
+  if (typeof e?.code === 'string' && ['no-columns', 'bad-prefix', 'bad-method', 'collision'].includes(e.code)) {
     return { type: 'error', code: e.code as ErrorCode, details: Array.isArray(e.details) ? e.details : [] }
   }
   if (e?.name === 'MappingError') return { type: 'error', code: 'mapping', details: [e.message ?? ''] }

@@ -1,16 +1,17 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useI18n, type TKey } from '../i18n'
 import { suggestPrefix } from '../lib/detectType'
 import { baseName } from '../lib/fileName'
-import type { PrefixStats } from '../lib/masker'
+import type { DictionaryStats } from '../lib/masker'
 import type { ColumnConfig, MaskWarning } from '../lib/types'
 import { useWorker } from '../useWorker'
-import { confirmBigFile, downloadBlob, errorText, formatBytes, MIME } from '../util'
+import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
 import type { MaskRequest, MaskResponse, WorkbookInfo, WorkerError } from '../workers/protocol'
-import { ColumnSelector } from './ColumnSelector'
+import { ColumnSelector, methodsFor } from './ColumnSelector'
 import { FileDropzone } from './FileDropzone'
-import { DownloadIcon, FileIcon, KeyIcon } from './icons'
+import { CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon } from './icons'
 import { PreviewTable } from './PreviewTable'
+import { Hint, Tooltip } from './Tooltip'
 import { Alert, btnPrimary, btnSecondary, Card, ProgressBar, StepTitle } from './ui'
 
 type Stage = 'empty' | 'loading' | 'ready' | 'masking' | 'done'
@@ -19,7 +20,7 @@ interface MaskOutput {
   masked: ArrayBuffer
   format: 'xlsx' | 'csv'
   mappingJson: string
-  stats: PrefixStats[]
+  stats: DictionaryStats[]
   warnings: MaskWarning[]
   maskedCells: number
 }
@@ -35,8 +36,8 @@ function initialConfigs(info: WorkbookInfo): Record<string, ColumnConfig> {
       header: col.header,
       enabled: false,
       type,
+      method: methodsFor(type)[0],
       prefix: suggestPrefix(type, col.header, col.colIndex),
-      moneyMode: 'multiply',
     }
   }
   return configs
@@ -121,9 +122,13 @@ export function MaskPanel() {
       return res.arrayBuffer()
     })
 
-  const update = (key: string, patch: Partial<ColumnConfig>) => {
+  const invalidateOutput = () => {
     setOutput(null)
     if (stage === 'done') setStage('ready')
+  }
+
+  const update = (key: string, patch: Partial<ColumnConfig>) => {
+    invalidateOutput()
     if (patch.prefix !== undefined) setTouchedPrefix((s) => new Set(s).add(key))
     setConfigs((prev) => {
       const cur = prev[key]
@@ -136,10 +141,14 @@ export function MaskPanel() {
     })
   }
 
-  const setAll = (enabled: boolean) => {
-    setOutput(null)
-    if (stage === 'done') setStage('ready')
-    setConfigs((prev) => Object.fromEntries(Object.entries(prev).map(([k, c]) => [k, { ...c, enabled }])))
+  const setEnabled = (isOn: (key: string) => boolean) => {
+    invalidateOutput()
+    setConfigs((prev) => Object.fromEntries(Object.entries(prev).map(([k, c]) => [k, { ...c, enabled: isOn(k) }])))
+  }
+
+  const selectSuggested = () => {
+    const suggested = new Set(info?.columns.filter((c) => c.suggestion).map((c) => c.key))
+    setEnabled((k) => suggested.has(k))
   }
 
   const mask = () => {
@@ -162,10 +171,11 @@ export function MaskPanel() {
   const base = info ? baseName(info.fileName) : ''
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <Card>
         <StepTitle
           n={1}
+          hint={t('step1Hint')}
           aside={
             info && (
               <button type="button" className={btnSecondary} onClick={reset}>
@@ -177,24 +187,24 @@ export function MaskPanel() {
           {t('step1')}
         </StepTitle>
         {stage === 'empty' || stage === 'loading' ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <FileDropzone accept={ACCEPT} title={t('dropTitle')} hint={t('dropHint')} onFile={onFile} disabled={stage === 'loading'} />
             <div className="flex justify-center">
               <button
                 type="button"
-                className="text-sm font-medium text-emerald-700 underline-offset-4 hover:underline disabled:opacity-50 dark:text-emerald-400"
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950"
                 onClick={trySample}
                 disabled={stage === 'loading'}
               >
-                {t('trySample')}
+                <SparkIcon /> {t('trySample')}
               </button>
             </div>
             {stage === 'loading' && <ProgressBar pct={30} label={file?.name ?? ''} />}
           </div>
         ) : (
           info && (
-            <div className="flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-slate-100 text-xl text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-800/50">
+              <span className="flex size-11 items-center justify-center rounded-xl bg-white text-xl text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400">
                 <FileIcon />
               </span>
               <div className="min-w-0">
@@ -217,82 +227,89 @@ export function MaskPanel() {
       {info && stage !== 'empty' && stage !== 'loading' && (
         <>
           <Card>
-            <StepTitle n={2}>{t('step2')}</StepTitle>
+            <StepTitle n={2} hint={t('step2Hint')}>
+              {t('step2')}
+            </StepTitle>
             <ColumnSelector
               columns={info.columns}
               configs={configs}
               onChange={update}
-              onAll={setAll}
+              onAll={(on) => setEnabled(() => on)}
+              onSuggested={selectSuggested}
               showSheets={info.sheets.length > 1}
             />
-            <div className="mt-6 border-t border-slate-200 pt-5 dark:border-slate-800">
-              <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">{t('preview')}</h3>
+            <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+              <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                {t('preview')} <Hint text={t('previewHint')} align="start" />
+              </h3>
               <PreviewTable sheets={info.sheets} configs={configs} />
             </div>
-            <div className="mt-6 space-y-3">
+            <div className="sticky bottom-3 z-20 mt-6 space-y-3">
               {error && <Alert kind="error">{error}</Alert>}
-              {stage === 'masking' ? (
-                <ProgressBar pct={progress} label={t('processing', { pct: Math.round(progress) })} />
-              ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  <button type="button" className={btnPrimary} disabled={enabledCount === 0} onClick={mask}>
-                    {t('maskButton')}
-                  </button>
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {enabledCount ? t('selectedCount', { n: enabledCount }) : t('noneSelected')}
-                  </span>
-                </div>
-              )}
+              <div className="rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+                {stage === 'masking' ? (
+                  <ProgressBar pct={progress} label={t('processing', { pct: Math.round(progress) })} />
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Tooltip content={t('maskButtonHint')} align="start">
+                      <button type="button" className={btnPrimary} disabled={enabledCount === 0} onClick={mask}>
+                        <ShieldIcon /> {t('maskButton')}
+                      </button>
+                    </Tooltip>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {enabledCount ? t('selectedCount', { n: enabledCount }) : t('noneSelected')}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
 
           {stage === 'done' && output && (
             <Card className="border-emerald-300 dark:border-emerald-800">
-              <StepTitle n={3}>{t('step3')}</StepTitle>
-              <div className="space-y-4">
-                <Alert kind="success" title={t('doneTitle', { cells: output.maskedCells.toLocaleString() })} />
+              <StepTitle n={3} hint={t('step3Hint')}>
+                {t('step3')}
+              </StepTitle>
+              <div className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-lg text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <CheckIcon />
+                  </span>
+                  <div>
+                    <p className="font-semibold">{t('doneTitle', { cells: output.maskedCells.toLocaleString() })}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{t('doneSubtitle')}</p>
+                  </div>
+                </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-                    <div>
-                      <p className="font-semibold">{t('downloadMasked')}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{t('downloadMaskedHint')}</p>
-                      <p className="mt-1 font-mono text-xs break-all text-slate-500">
-                        {base}_masked.{output.format}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className={btnPrimary}
-                      onClick={() => {
-                        downloadBlob(output.masked, `${base}_masked.${output.format}`, MIME[output.format])
-                        setDownloaded((d) => ({ ...d, masked: true }))
-                      }}
-                    >
-                      <DownloadIcon /> {t('downloadMasked')}
-                      {downloaded.masked && ' ✓'}
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/20">
-                    <div>
-                      <p className="flex items-center gap-1.5 font-semibold text-red-800 dark:text-red-200">
-                        <KeyIcon /> {t('downloadMapping')}
-                      </p>
-                      <p className="text-sm text-red-700 dark:text-red-300">{t('mappingWarningTitle')}</p>
-                      <p className="mt-1 font-mono text-xs break-all text-slate-500">{base}_mapping_PRIVATE.json</p>
-                    </div>
-                    <button
-                      type="button"
-                      className={btnSecondary}
-                      onClick={() => {
-                        downloadBlob(output.mappingJson, `${base}_mapping_PRIVATE.json`, MIME.json)
-                        setDownloaded((d) => ({ ...d, mapping: true }))
-                      }}
-                    >
-                      <DownloadIcon /> {t('downloadMapping')}
-                      {downloaded.mapping && ' ✓'}
-                    </button>
-                  </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <DownloadCard
+                    safe
+                    icon={<ShieldIcon />}
+                    title={t('downloadMasked')}
+                    subtitle={t('downloadMaskedHint')}
+                    tip={t('downloadMaskedTip')}
+                    fileName={`${base}_masked.${output.format}`}
+                    label={t('download')}
+                    done={downloaded.masked}
+                    onDownload={() => {
+                      downloadBlob(output.masked, `${base}_masked.${output.format}`, MIME[output.format])
+                      setDownloaded((d) => ({ ...d, masked: true }))
+                    }}
+                  />
+                  <DownloadCard
+                    safe={false}
+                    icon={<KeyIcon />}
+                    title={t('downloadMapping')}
+                    subtitle={t('downloadMappingHint')}
+                    tip={t('downloadMappingTip')}
+                    fileName={`${base}_mapping_PRIVATE.json`}
+                    label={t('download')}
+                    done={downloaded.mapping}
+                    onDownload={() => {
+                      downloadBlob(output.mappingJson, `${base}_mapping_PRIVATE.json`, MIME.json)
+                      setDownloaded((d) => ({ ...d, mapping: true }))
+                    }}
+                  />
                 </div>
 
                 <Alert kind="danger" title={t('mappingWarningTitle')}>
@@ -306,7 +323,7 @@ export function MaskPanel() {
                         <li key={i}>
                           {w.kind === 'pii-unmasked'
                             ? t('warnPii', { header: w.header, sheet: w.sheet, count: w.count, detail: t(`detail_${w.detail}` as TKey) })
-                            : t('warnMoney', { header: w.header, sheet: w.sheet, count: w.count })}
+                            : t(`warnSkipped_${w.detail}` as TKey, { header: w.header, sheet: w.sheet, count: w.count })}
                         </li>
                       ))}
                     </ul>
@@ -314,14 +331,18 @@ export function MaskPanel() {
                 )}
 
                 {output.stats.length > 0 && (
-                  <details className="rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800">
+                  <details className="rounded-2xl border border-slate-200 p-4 text-sm dark:border-slate-800">
                     <summary className="cursor-pointer font-medium">{t('statsTitle')}</summary>
                     <ul className="mt-2 space-y-0.5 font-mono text-xs text-slate-600 dark:text-slate-400">
-                      {output.stats.map((s) => (
-                        <li key={s.prefix}>
-                          {t('statsRow', { prefix: s.prefix, unique: s.unique.toLocaleString(), cells: s.cells.toLocaleString() })}
-                        </li>
-                      ))}
+                      {output.stats.map((s) => {
+                        const vars = {
+                          key: s.key,
+                          type: t(`type_${s.type}` as TKey),
+                          unique: s.unique.toLocaleString(),
+                          cells: s.cells.toLocaleString(),
+                        }
+                        return <li key={s.key}>{s.method === 'fake' ? t('statsFake', vars) : t('statsCode', vars)}</li>
+                      })}
                     </ul>
                   </details>
                 )}
@@ -336,6 +357,53 @@ export function MaskPanel() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function DownloadCard(props: {
+  safe: boolean
+  icon: ReactNode
+  title: string
+  subtitle: string
+  tip: string
+  fileName: string
+  label: string
+  done: boolean
+  onDownload: () => void
+}) {
+  const { safe } = props
+  return (
+    <div
+      className={cx(
+        'flex flex-col gap-4 rounded-2xl border bg-gradient-to-br to-white p-5 dark:to-slate-900',
+        safe
+          ? 'border-emerald-200 from-emerald-50 dark:border-emerald-900 dark:from-emerald-950/40'
+          : 'border-rose-200 from-rose-50 dark:border-rose-900 dark:from-rose-950/30',
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={cx(
+            'flex size-10 shrink-0 items-center justify-center rounded-xl text-lg text-white',
+            safe ? 'bg-emerald-600' : 'bg-rose-600',
+          )}
+        >
+          {props.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1 font-semibold">
+            {props.title} <Hint text={props.tip} align="end" />
+          </p>
+          <p className={cx('text-sm', safe ? 'text-emerald-800 dark:text-emerald-300' : 'font-medium text-rose-700 dark:text-rose-300')}>
+            {props.subtitle}
+          </p>
+          <p className="mt-1 font-mono text-xs break-all text-slate-500">{props.fileName}</p>
+        </div>
+      </div>
+      <button type="button" className={safe ? btnPrimary : btnSecondary} onClick={props.onDownload}>
+        {props.done ? <CheckIcon /> : <DownloadIcon />} {props.label}
+      </button>
     </div>
   )
 }

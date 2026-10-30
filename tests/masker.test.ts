@@ -136,7 +136,7 @@ describe('maskWorkbook — money', () => {
     const wb = book({ S: [['Price', 'Quantity', 'Revenue'], [125000, 40, 5000000], [45000, 120, 5400000]] })
     const { mapping } = maskWorkbook(
       wb,
-      [col('Price', 'money', { moneyMode: 'multiply' }), col('Revenue', 'money', { moneyMode: 'multiply' }, 2)],
+      [col('Price', 'money', { method: 'multiply' }), col('Revenue', 'money', { method: 'multiply' }, 2)],
       opts,
     )
     const f = mapping.money!.factor
@@ -165,8 +165,8 @@ describe('maskWorkbook — money', () => {
 
   it('parses amounts stored as text and warns about non-numeric ones', () => {
     const wb = book({ S: [['Số tiền'], ['1.234.000'], ['Thỏa thuận']] })
-    const { warnings } = maskWorkbook(wb, [col('Số tiền', 'money', { moneyMode: 'round' })], opts)
+    const { warnings } = maskWorkbook(wb, [col('Số tiền', 'money', { method: 'round' })], opts)
     expect(values(wb)[1][0]).toBe(1200000)
-    expect(warnings).toEqual([expect.objectContaining({ kind: 'money-non-numeric', count: 1 })])
+    expect(warnings).toEqual([expect.objectContaining({ kind: 'skipped', detail: 'number', count: 1 })])
   })
 })

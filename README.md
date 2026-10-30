@@ -1,144 +1,233 @@
-# MaskSheet
+<div align="center">
 
-**Che dữ liệu nhạy cảm trong Excel/CSV trước khi đưa cho AI — rồi khôi phục lại kết quả.**
-Chạy 100% trên trình duyệt. Không backend, không upload, không analytics.
+# 🔒 MaskSheet
 
-[Tiếng Việt](#tiếng-việt) · [English](#english)
+### Đưa Excel cho AI mà không lộ dữ liệu
 
-![Chọn cột cần che](docs/screenshot-columns.jpg)
+**[🚀 Dùng ngay → marksheet-two-beta.vercel.app](https://marksheet-two-beta.vercel.app/)**
+
+[![Live demo](https://img.shields.io/badge/demo-live-10b981?style=flat-square&logo=vercel&logoColor=white)](https://marksheet-two-beta.vercel.app/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+![100% client-side](https://img.shields.io/badge/100%25-client--side-0ea5e9?style=flat-square)
+![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite&logoColor=white)
+
+[Tiếng Việt](#-tiếng-việt) · [English](#-english)
+
+<img src="docs/screenshot-hero.jpg" alt="MaskSheet — màn hình chính" width="820" />
+
+</div>
 
 ---
 
-## Tiếng Việt
+## 🇻🇳 Tiếng Việt
 
 ### Vấn đề
 
-Bạn muốn nhờ ChatGPT/Claude/Gemini phân tích một file Excel, nhưng file có mã khách hàng, tên, số điện thoại, doanh số… không được phép đưa ra ngoài.
+Bạn muốn nhờ ChatGPT, Claude hay Gemini phân tích một file Excel, nhưng file chứa tên khách hàng, số điện thoại, CCCD, doanh số… Những thông tin này không được phép đưa ra ngoài công ty.
 
-### Cách MaskSheet giải quyết
+### Giải pháp
 
-1. **Che**: tải file lên, tick các cột nhạy cảm. Mỗi giá trị được thay bằng một mã ẩn danh như `NAME_0001`.
-   - Cùng một giá trị → **luôn cùng một mã** (kể cả ở sheet khác có cùng tên cột).
-   - Giá trị khác nhau → mã khác nhau.
-   - Vị trí dòng/cột, tên sheet, các cột không tick: **giữ nguyên**.
-2. Đưa file `_masked.xlsx` cho AI. AI vẫn đếm, nhóm, so sánh, tính tổng được như bình thường.
-3. **Khôi phục**: dán câu trả lời của AI (hoặc tải file kết quả) cùng file `_mapping_PRIVATE.json` → mọi mã được thay về giá trị thật.
+**MaskSheet** thay dữ liệu nhạy cảm bằng mã ẩn danh hoặc dữ liệu giả **ngay trong trình duyệt**. Sau khi AI trả lời, bạn khôi phục về giá trị thật chỉ với một cú nhấp.
 
-![Xem trước](docs/screenshot-preview.jpg)
-
-### Tính năng
-
-- Đọc `.xlsx`, `.xls`, `.csv` (UTF-8 hoặc Windows-1258), nhiều sheet.
-- Tự gợi ý loại cột từ tên cột (Họ tên, SĐT, Email, CCCD, Địa chỉ, Công ty, Số tiền…) và từ nội dung (regex email / SĐT Việt Nam / CCCD).
-- Chuẩn hóa trước khi so sánh: khoảng trắng thừa, Unicode dựng sẵn/tổ hợp; email không phân biệt hoa thường; SĐT `0912 345 678` = `+84912345678`.
-- **Số tiền** có 3 chế độ:
-  - *Nhân hệ số bí mật*: mọi cột tiền dùng **chung một hệ số** ngẫu nhiên (0.5–0.9 hoặc 1.1–2.0), nên `Doanh thu = Giá × SL` và các phép cộng vẫn đúng tỉ lệ. Khi khôi phục file, cột cùng tên được chia ngược tự động; với text có ô đổi số.
-  - *Thay bằng mã*.
-  - *Làm tròn* 2 chữ số có nghĩa (không khôi phục được).
-- Kiểm tra an toàn:
-  - Từ chối che nếu dữ liệu gốc đã có chuỗi giống mã (vd. `NAME_0007`) để tránh khôi phục nhầm.
-  - Cảnh báo nếu cột **không** được che vẫn chứa thứ giống SĐT/email/CCCD.
-  - Báo mã mà AI tự bịa ra (không có trong mapping).
-- File xuất là bản "sạch": bỏ công thức, ghi chú, hyperlink, named range, thông tin tác giả.
-- Xử lý trong Web Worker (UI không đơ), có thanh tiến trình; cảnh báo file > 50MB.
-- Tiếng Việt / English, dark mode, dùng được trên điện thoại.
-
-### Quyền riêng tư
-
-- Không có server xử lý. File được đọc bằng `FileReader`/`ArrayBuffer` và xử lý trong Web Worker ngay trên máy bạn.
-- Trang được phát hành kèm **Content-Security-Policy** `connect-src 'self'`: trình duyệt **chặn** mọi request gửi dữ liệu tới domain khác, kể cả khi có ai đó chèn script lạ. Bạn có thể kiểm tra bằng DevTools → Network, hoặc ngắt mạng sau khi trang đã tải.
-- Không font/CDN/analytics bên ngoài.
-- **File mapping chứa toàn bộ dữ liệu gốc.** Giữ cẩn thận, KHÔNG gửi cho AI.
-
-> Lưu ý: đây là *giả danh hóa* (pseudonymization), không phải ẩn danh tuyệt đối. Tần suất xuất hiện và quan hệ giữa các dòng vẫn còn — đó chính là thứ giúp AI phân tích được. Hãy cân nhắc với dữ liệu cực kỳ nhạy cảm.
-
-### Chạy local
-
-Yêu cầu Node.js 20+.
-
-```bash
-npm install
-npm run dev        # http://localhost:5173
-npm test           # unit test (Vitest)
-npm run build      # build static vào dist/
-npm run preview    # xem bản build (có CSP) tại http://localhost:4173
+```mermaid
+flowchart LR
+    A["📊 File gốc<br/>Nguyễn Văn A · 0912 345 678"] -->|Che| B["🛡️ File đã che<br/>NAME_0001 · PHONE_0001"]
+    B -->|Gửi| C["🤖 AI phân tích"]
+    C -->|Trả lời| D["💬 NAME_0001 mua nhiều nhất"]
+    D -->|Khôi phục| E["✅ Nguyễn Văn A mua nhiều nhất"]
+    A -.->|"🔑 mapping_PRIVATE.json<br/>(giữ lại, không gửi AI)"| E
 ```
 
-### Deploy lên Vercel
+### ✨ Tính năng
 
-1. Push repo lên GitHub.
-2. Vào [vercel.com/new](https://vercel.com/new) → Import repo. Vercel tự nhận Vite (`npm run build`, output `dist`).
-3. Deploy. `vercel.json` đã cấu hình header CSP và các header bảo mật.
+| | |
+|---|---|
+| 🔐 **100% trên trình duyệt** | Không backend, không upload, không analytics. Được khóa bằng Content-Security-Policy. |
+| 🎯 **Nhất quán** | Cùng một giá trị luôn ra cùng một mã, kể cả ở sheet khác có cùng tên cột. AI vẫn đếm, nhóm, so sánh đúng. |
+| 🧰 **9 cách che** | Mã ẩn danh, dữ liệu giả, che một phần, xóa trắng, nhân hệ số, làm tròn, khoảng giá trị, dịch ngày, chỉ giữ tháng. |
+| 🪄 **Tự nhận diện cột** | Gợi ý loại dữ liệu từ tên cột (Họ tên, SĐT, CCCD…) và nội dung (email, SĐT Việt Nam, ngày tháng). |
+| 👀 **Xem trước trực tiếp** | Ví dụ cho từng cột và bảng "Gốc / Sau khi che" trước khi xuất file. |
+| ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
+| 🛡️ **Kiểm tra an toàn** | Cảnh báo SĐT/email/CCCD còn sót ở cột chưa che; từ chối khi dữ liệu gốc đã có chuỗi giống mã; báo mã do AI tự bịa ra. |
+| ⚡ **File lớn** | Xử lý trong Web Worker, có thanh tiến trình, UI không bị treo. |
+| 🌗 **Thân thiện** | Tiếng Việt / English, giao diện sáng/tối, dùng tốt trên điện thoại, có hướng dẫn khi di chuột. |
 
-Hoặc dùng CLI: `npx vercel --prod`.
+### 🧰 Các cách che dữ liệu
 
-**GitHub Pages / Cloudflare Pages**: build ra `dist/` là static thuần, dùng đường dẫn tương đối (`base: './'`) nên chạy được ở sub-path. CSP đã được nhúng bằng thẻ `<meta>` trong `index.html` khi build.
+| Cách che | Ví dụ | Khôi phục | Dùng khi |
+|---|---|:---:|---|
+| **Mã ẩn danh** | `Nguyễn Văn A` → `NAME_0001` | ✅ | Mặc định, chắc chắn nhất |
+| **Dữ liệu giả** | `Nguyễn Văn A` → `Trần Minh Khoa` | ✅ | Muốn AI đọc tự nhiên (tên, SĐT, email, CCCD, công ty, địa chỉ) |
+| **Che một phần** | `0912345678` → `091****678`<br/>`an@gmail.com` → `a***@gmail.com`<br/>`12 Lê Lợi, Huế` → `***, Huế` | ❌ | Cần giữ đầu số, tên miền, tỉnh/thành để phân tích |
+| **Xóa trắng** | `Ghi chú nội bộ` → `***` | ❌ | AI không cần đọc cột này |
+| **Nhân hệ số bí mật** | `5,000,000` → `4,121,000` | ✅ | Số tiền: tổng, tỉ lệ, Giá × SL vẫn đúng tương đối |
+| **Làm tròn** | `7,425,000` → `7,400,000` | ❌ | Chỉ cần độ lớn |
+| **Khoảng giá trị** | `7,425,000` → `5,000,000–10,000,000` | ❌ | Phân nhóm theo mức |
+| **Dịch ngày bí mật** | `01/10/2026` → `11/04/2026` | ✅ | Giữ khoảng cách giữa các ngày |
+| **Chỉ giữ tháng/năm** | `15/03/1990` → `03/1990` | ❌ | Ngày sinh, thống kê theo tháng |
 
-### Cấu trúc
+> Mọi cột tiền dùng **chung một hệ số**, mọi cột ngày dùng **chung một độ dịch**, nên quan hệ giữa các cột (ví dụ `Doanh thu = Giá × SL`) vẫn giữ nguyên.
+
+### 📖 Cách dùng
+
+<img src="docs/screenshot-columns.jpg" alt="Chọn cột và cách che" width="820" />
+
+1. **Che dữ liệu**
+   - Mở **[MaskSheet](https://marksheet-two-beta.vercel.app/)** rồi kéo thả file `.xlsx`, `.xls` hoặc `.csv` vào (hoặc bấm *Thử với file mẫu*).
+   - Tick các cột nhạy cảm (hoặc bấm *Chọn theo gợi ý*), sau đó chọn **loại dữ liệu** và **cách che**.
+   - Bật *Sau khi che* ở bảng xem trước để kiểm tra, rồi bấm **Che dữ liệu**.
+   - Tải về 2 file:
+     - `…_masked.xlsx`: gửi file này cho AI.
+     - `…_mapping_PRIVATE.json`: giữ riêng, **không gửi AI**.
+2. **Gửi cho AI:** tải file `_masked` lên ChatGPT, Claude hay Gemini và đặt câu hỏi như bình thường.
+3. **Khôi phục**
+   - Mở tab **Khôi phục** và tải file mapping lên.
+   - Dán câu trả lời của AI, hoặc tải file kết quả AI trả về.
+   - Nhận lại văn bản hoặc file với giá trị thật.
+
+<img src="docs/screenshot-preview.jpg" alt="Xem trước sau khi che" width="820" />
+
+### 🔐 Quyền riêng tư & bảo mật
+
+- **Không có server.** File được đọc bằng `ArrayBuffer` và xử lý trong Web Worker ngay trên máy bạn.
+- **Content-Security-Policy `connect-src 'self'`.** Trình duyệt **chặn** mọi kết nối tới domain khác, nên dữ liệu không thể bị gửi đi kể cả khi có script lạ. Bạn có thể kiểm tra trong DevTools → Network, hoặc ngắt mạng sau khi trang đã tải.
+- **Không font, CDN hay analytics bên ngoài.**
+- **File xuất "sạch":** công thức, ghi chú, hyperlink, named range và thông tin tác giả đều bị loại bỏ.
+- **Hệ số bí mật và mã giả** được sinh bằng `crypto.getRandomValues`.
+
+> ⚠️ **File mapping chứa toàn bộ dữ liệu gốc.** Hãy lưu ở nơi an toàn và **không bao giờ** gửi cho AI.
+>
+> MaskSheet thực hiện *giả danh hóa* (pseudonymization), không phải ẩn danh tuyệt đối. Tần suất và quan hệ giữa các dòng vẫn được giữ lại, đó chính là điều giúp AI phân tích được. Với dữ liệu cực kỳ nhạy cảm, hãy ưu tiên các cách che một chiều.
+
+### 🛠️ Chạy local
+
+Yêu cầu **Node.js 20+**.
+
+```bash
+git clone https://github.com/HoangPhucTony/MaskSheet.git
+cd MaskSheet
+npm install
+npm run dev        # http://localhost:5173
+```
+
+| Lệnh | Mô tả |
+|---|---|
+| `npm run dev` | Chạy server phát triển |
+| `npm test` | Chạy unit test (Vitest) |
+| `npm run build` | Kiểm tra kiểu + build static vào `dist/` |
+| `npm run preview` | Xem bản build (có CSP) tại http://localhost:4173 |
+
+### 🚀 Deploy
+
+**Vercel (khuyên dùng)**
+1. Fork repo này.
+2. Vào [vercel.com/new](https://vercel.com/new) và import repo. Vercel tự nhận Vite.
+3. Bấm Deploy. File `vercel.json` đã cấu hình sẵn CSP và các header bảo mật.
+
+**GitHub Pages / Cloudflare Pages / Netlify:** thư mục `dist/` là static thuần, dùng đường dẫn tương đối (`base: './'`) nên chạy được ở sub-path. CSP được nhúng sẵn qua thẻ `<meta>`.
+
+### 🏗️ Kiến trúc
 
 ```
 src/
-  lib/          # logic thuần, không phụ thuộc DOM → dễ test
-    masker.ts     # che dữ liệu, tạo mapping
-    unmasker.ts   # khôi phục từ workbook hoặc text
-    detectType.ts # đoán loại cột
-    mapping.ts    # schema + validate file mapping
-    normalize.ts, money.ts, sheet.ts, io.ts
-  workers/      # mask.worker.ts, unmask.worker.ts
-  components/   # UI
-  i18n/         # vi, en
-tests/          # Vitest
-public/sample.xlsx
+├── lib/                 # Logic thuần TypeScript, không phụ thuộc DOM, có unit test
+│   ├── masker.ts        # Che dữ liệu, tạo file mapping
+│   ├── unmasker.ts      # Khôi phục từ workbook hoặc văn bản
+│   ├── fake.ts          # Sinh dữ liệu giả tiếng Việt (không trùng lặp)
+│   ├── partial.ts       # Che một phần
+│   ├── dates.ts         # Dịch ngày, chỉ giữ tháng
+│   ├── money.ts         # Hệ số, làm tròn, khoảng giá trị
+│   ├── detectType.ts    # Tự nhận diện loại cột
+│   └── mapping.ts       # Schema + kiểm tra file mapping
+├── workers/             # mask.worker.ts, unmask.worker.ts
+├── components/          # Giao diện React
+└── i18n/                # vi, en
+tests/                   # Vitest
 ```
 
-### Giới hạn hiện tại
+**Tech stack:** Vite · React 19 · TypeScript · Tailwind CSS 4 · SheetJS · Web Workers · Vitest
 
-- SheetJS bản cộng đồng không giữ màu sắc/định dạng ô (chỉ giữ giá trị và định dạng số).
-- File `.xlsx` được đọc toàn bộ vào bộ nhớ; file rất lớn nên lưu thành CSV.
+### ⚠️ Giới hạn hiện tại
+
+- SheetJS bản cộng đồng không giữ màu sắc và định dạng ô; chỉ giữ giá trị và định dạng số.
+- File `.xlsx` được đọc toàn bộ vào bộ nhớ, nên file rất lớn (trên 50MB) nên lưu thành CSV trước.
 - Dòng đầu tiên của mỗi sheet được coi là dòng tiêu đề.
+- Với *dữ liệu giả*, nếu AI viết tắt hoặc chỉ gọi tên (vd. "anh Khoa") thì phần đó sẽ không được khôi phục. Dùng *mã ẩn danh* nếu cần chắc chắn.
+
+### 🗺️ Lộ trình
+
+- [ ] Mã hóa file mapping bằng mật khẩu (Web Crypto)
+- [ ] Đọc CSV rất lớn theo luồng (streaming)
+- [ ] Chọn dòng tiêu đề khác dòng 1
+- [ ] Hỗ trợ file Word / PDF
+
+### 🤝 Đóng góp
+
+Mọi đóng góp đều được hoan nghênh! Xem [CONTRIBUTING.md](CONTRIBUTING.md). Nguyên tắc quan trọng nhất: **không bao giờ gửi dữ liệu người dùng ra khỏi trình duyệt**.
 
 ---
 
-## English
+## 🇬🇧 English
 
-**Mask sensitive data in Excel/CSV before sending it to an AI, then restore the AI's answer.** Runs 100% in the browser — no backend, no upload, no analytics.
+**[🚀 Try it live → marksheet-two-beta.vercel.app](https://marksheet-two-beta.vercel.app/)**
 
-### How it works
-
-1. **Mask**: open a file and tick the sensitive columns. Every value becomes a code like `NAME_0001`. The same value always gets the same code (also across sheets with the same column name); different values get different codes. Row/column positions, sheet names and unticked columns are unchanged.
-2. Give the `_masked.xlsx` file to the AI. It can still count, group, compare and sum.
-3. **Restore**: paste the AI's answer (or upload its result file) together with `_mapping_PRIVATE.json`; every code is replaced with the real value.
+MaskSheet replaces sensitive values in Excel/CSV files with anonymous codes or realistic fake data **inside your browser**, so you can safely ask ChatGPT, Claude or Gemini to analyse them. When the AI answers, restore the real values in one click.
 
 ### Features
 
-- `.xlsx`, `.xls`, `.csv` (UTF-8 or Windows-1258), multiple sheets.
-- Column type suggestions from header names and content (email / Vietnamese phone / national ID).
-- Normalization: whitespace, Unicode NFC/NFD, case-insensitive emails, phone formats.
-- **Amounts**: multiply by one shared secret factor (keeps `Revenue = Price × Qty` and totals proportional, divided back on restore), replace with codes, or round to 2 significant digits (irreversible).
-- Safety checks: refuses to mask when the data already contains code-like text; warns about phone/email/ID-like text in unmasked columns; reports codes the AI made up.
-- Clean output: formulas, comments, hyperlinks, defined names and document properties are removed.
-- Web Worker processing with progress; warning above 50 MB.
-- Vietnamese / English, dark mode, mobile friendly.
+- 🔐 **100% client-side.** No backend, no upload, no analytics, enforced by a `connect-src 'self'` Content-Security-Policy.
+- 🎯 **Consistent.** The same value always gets the same code, across columns and sheets, so the AI can still count, group and compare.
+- 🧰 **9 masking methods**, listed below.
+- 🪄 **Auto-detects** names, phones, emails, national IDs, addresses, companies, amounts and dates.
+- 👀 **Live preview.** Per-column examples plus an "Original / Masked" table.
+- ↺ **Restore** from pasted AI text or from returned `.xlsx`/`.csv` files.
+- 🛡️ **Safety checks.** Warns about PII left in unmasked columns, refuses when the data already contains code-like text, and reports codes the AI invented.
+- ⚡ **Web Workers** with progress, so large files don't freeze the page.
+- 🌗 **Easy to use.** Vietnamese / English, light & dark themes, mobile friendly, hover tooltips everywhere.
+
+### Masking methods
+
+| Method | Example | Reversible |
+|---|---|:---:|
+| Anonymous code | `Nguyễn Văn A` → `NAME_0001` | ✅ |
+| Fake data | `Nguyễn Văn A` → `Trần Minh Khoa` | ✅ |
+| Partial mask | `0912345678` → `091****678` | ❌ |
+| Redact | `…` → `***` | ❌ |
+| Secret multiplier (amounts) | `5,000,000` → `4,121,000` | ✅ |
+| Round | `7,425,000` → `7,400,000` | ❌ |
+| Value range | `7,425,000` → `5,000,000–10,000,000` | ❌ |
+| Secret date shift | `01/10/2026` → `11/04/2026` | ✅ |
+| Month/year only | `15/03/1990` → `03/1990` | ❌ |
+
+All amount columns share one factor and all date columns share one offset, so cross-column relationships such as `Revenue = Price × Qty` still hold.
+
+### How to use
+
+1. **Mask:** open a file, tick sensitive columns, pick a type and method, then click **Mask data**. Download `_masked.xlsx` (for the AI) and `_mapping_PRIVATE.json` (keep it private).
+2. **Ask AI:** upload the masked file to your AI assistant.
+3. **Restore:** in the **Restore** tab, load the mapping, then paste the AI's answer or upload its result file.
 
 ### Privacy
 
-No server ever sees your file. The site ships a **Content-Security-Policy** with `connect-src 'self'`, so the browser itself blocks sending data to any other host. No external fonts, CDNs or analytics. **The mapping file contains all original values — keep it private and never send it to an AI.**
+No server ever sees your data. The CSP makes the browser block every request to another origin. **The mapping file contains all original values: never send it to an AI.** MaskSheet performs pseudonymization; frequencies and relationships between rows are preserved by design.
 
-This is pseudonymization, not perfect anonymization: frequencies and relationships between rows remain (that is what makes AI analysis possible).
-
-### Run locally
+### Development
 
 ```bash
 npm install
-npm run dev
-npm test
-npm run build
+npm run dev      # dev server
+npm test         # unit tests
+npm run build    # type-check + static build in dist/
 ```
 
-### Deploy
+Deploy by importing the repo at [vercel.com/new](https://vercel.com/new). `vercel.json` sets the security headers. `dist/` also works as-is on GitHub Pages, Cloudflare Pages or Netlify.
 
-Import the repo at [vercel.com/new](https://vercel.com/new) — Vite is detected automatically and `vercel.json` adds the security headers. The `dist/` folder also works as-is on GitHub Pages or Cloudflare Pages.
+---
 
-## License
+<div align="center">
 
-[MIT](LICENSE)
+**[MIT License](LICENSE)** · Made with ❤️ for people who care about their data
+
+</div>

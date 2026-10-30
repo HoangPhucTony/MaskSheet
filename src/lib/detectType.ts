@@ -1,3 +1,4 @@
+import { isTextDate } from './dates'
 import { normalizePhone, normalizeSpace, sanitizePrefix, stripDiacritics, colLetter } from './normalize'
 import { DEFAULT_PREFIX, type DataType } from './types'
 
@@ -13,6 +14,7 @@ const HEADER_RULES: [DataType, string[]][] = [
   ['email', ['email', 'e mail', 'mail', 'thu dien tu']],
   ['phone', ['sdt', 'so dt', 'dt di dong', 'dien thoai', 'di dong', 'phone', 'mobile', 'tel', 'telephone', 'hotline', 'zalo']],
   ['id', ['cccd', 'cmnd', 'cmt', 'can cuoc', 'chung minh', 'dinh danh', 'passport', 'ho chieu', 'national id', 'id card', 'ssn', 'mst', 'ma so thue', 'tax code']],
+  ['date', ['ngay', 'ngay sinh', 'ngay thang', 'date', 'dob', 'birthday', 'birth date', 'thoi gian', 'deadline']],
   ['address', ['dia chi', 'address', 'addr', 'noi o', 'thuong tru', 'tam tru', 'cho o']],
   ['org', ['cong ty', 'cty', 'company', 'organization', 'organisation', 'to chuc', 'don vi', 'doanh nghiep', 'employer']],
   ['money', ['gia', 'don gia', 'tien', 'so tien', 'thanh tien', 'tong tien', 'doanh thu', 'doanh so', 'luong', 'chi phi', 'loi nhuan', 'price', 'amount', 'revenue', 'salary', 'cost', 'profit', 'income', 'vnd', 'usd']],
@@ -68,20 +70,26 @@ function ratio(samples: string[], test: (s: string) => boolean): number {
 
 const CONTENT_THRESHOLD = 0.6
 
-export function detectFromContent(samples: string[]): DataType | null {
+export interface ContentHints {
+  /** Share of non-empty cells that are numbers with a date format (from the worker). */
+  dateRatio?: number
+}
+
+export function detectFromContent(samples: string[], hints: ContentHints = {}): DataType | null {
   if (ratio(samples, isEmail) >= CONTENT_THRESHOLD) return 'email'
   if (ratio(samples, isVnPhone) >= CONTENT_THRESHOLD) return 'phone'
+  if ((hints.dateRatio ?? 0) >= CONTENT_THRESHOLD || ratio(samples, isTextDate) >= CONTENT_THRESHOLD) return 'date'
   if (ratio(samples, isVnId) >= CONTENT_THRESHOLD) return 'id'
   return null
 }
 
 /**
  * Suggest a data type for a column from its header and a sample of its cell texts.
- * Content wins for email/phone because it is unambiguous; otherwise the header decides.
+ * Content wins for email/phone/date because it is unambiguous; otherwise the header decides.
  */
-export function detectType(header: string, samples: string[]): Detection | null {
-  const fromContent = detectFromContent(samples)
-  if (fromContent === 'email' || fromContent === 'phone') return { type: fromContent, source: 'content' }
+export function detectType(header: string, samples: string[], hints: ContentHints = {}): Detection | null {
+  const fromContent = detectFromContent(samples, hints)
+  if (fromContent === 'email' || fromContent === 'phone' || fromContent === 'date') return { type: fromContent, source: 'content' }
   const fromHeader = detectFromHeader(header)
   if (fromHeader) return { type: fromHeader, source: 'header' }
   if (fromContent) return { type: fromContent, source: 'content' }

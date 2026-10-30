@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useI18n } from '../i18n'
 import { baseName } from '../lib/fileName'
 import { parseMapping, type MappingFile } from '../lib/mapping'
+import { parseTextDate, shiftTextDate } from '../lib/dates'
 import { divideBack, parseNumber } from '../lib/money'
 import type { UnmaskStats } from '../lib/unmasker'
 import { useWorker } from '../useWorker'
@@ -9,6 +10,7 @@ import { confirmBigFile, cx, downloadBlob, errorText, MIME } from '../util'
 import type { UnmaskRequest, UnmaskResponse } from '../workers/protocol'
 import { FileDropzone } from './FileDropzone'
 import { CopyIcon, DownloadIcon, FileIcon, KeyIcon, XIcon } from './icons'
+import { Hint } from './Tooltip'
 import { Alert, btnGhost, btnPrimary, btnSecondary, Card, inputBase, ProgressBar, StepTitle } from './ui'
 
 interface LoadedMapping {
@@ -112,14 +114,17 @@ export function UnmaskPanel() {
   }
 
   const codeCount = mapping ? Object.values(mapping.data.dictionaries).reduce((n, d) => n + d.entries.length, 0) : 0
-  const money = mapping?.data.money
+  const factor = mapping?.data.money?.factor ?? null
+  const offsetDays = mapping?.data.dates?.offsetDays ?? null
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-600 dark:text-slate-400">{t('unmaskIntro')}</p>
 
       <Card>
-        <StepTitle n={1}>{t('dropMappingTitle')}</StepTitle>
+        <StepTitle n={1} hint={t('unmaskStep1Hint')}>
+          {t('dropMappingTitle')}
+        </StepTitle>
         {mapping ? (
           <div className="flex items-center gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-xl text-red-700 dark:bg-red-950/50 dark:text-red-300">
@@ -154,7 +159,9 @@ export function UnmaskPanel() {
       </Card>
 
       <Card className={cx(!mapping && 'pointer-events-none opacity-50')}>
-        <StepTitle n={2}>{t('resultSource')}</StepTitle>
+        <StepTitle n={2} hint={t('resultSourceHint')}>
+          {t('resultSource')}
+        </StepTitle>
         <div role="tablist" className="mb-4 inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
           {(['text', 'file'] as const).map((s) => (
             <button
@@ -169,7 +176,7 @@ export function UnmaskPanel() {
               className={cx(
                 'rounded-lg px-3.5 py-1.5 text-sm font-medium transition',
                 source === s
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white'
+                  ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
               )}
             >
@@ -211,6 +218,7 @@ export function UnmaskPanel() {
             <>
               <Alert kind="success" title={t('restoredTitle', { n: result.stats.replaced.toLocaleString() })}>
                 {result.stats.divided > 0 && <p>{t('dividedCells', { n: result.stats.divided.toLocaleString() })}</p>}
+                {result.stats.shifted > 0 && <p>{t('shiftedCells', { n: result.stats.shifted.toLocaleString() })}</p>}
               </Alert>
               {result.stats.unknown.length > 0 && (
                 <Alert kind="warn">
@@ -248,48 +256,56 @@ export function UnmaskPanel() {
         </div>
       </Card>
 
-      {money && (money.multipliedHeaders.length > 0 || money.roundedHeaders.length > 0) && (
-        <MoneyConverter factor={money.multipliedHeaders.length > 0 ? money.factor : null} rounded={money.roundedHeaders} />
-      )}
+      {(factor !== null || offsetDays !== null) && <ConvertTools factor={factor} offsetDays={offsetDays} />}
     </div>
   )
 }
 
-function MoneyConverter({ factor, rounded }: { factor: number | null; rounded: string[] }) {
+function ConvertTools({ factor, offsetDays }: { factor: number | null; offsetDays: number | null }) {
   const { t, lang } = useI18n()
-  const [value, setValue] = useState('')
-  const parsed = parseNumber(value)
-  const real = factor && parsed !== null ? divideBack(parsed, factor) : null
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState('')
+  const parsed = parseNumber(amount)
+  const realAmount = factor !== null && parsed !== null ? divideBack(parsed, factor) : null
+  const realDate = offsetDays !== null && parseTextDate(date) ? shiftTextDate(date, -offsetDays) : null
+
+  const field = (label: string, value: string, set: (v: string) => void, placeholder: string, result: string | null) => (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="space-y-1.5 text-sm">
+        <span className="font-medium">{label}</span>
+        <input
+          value={value}
+          onChange={(e) => set(e.target.value)}
+          className={cx(inputBase, 'block w-full font-mono')}
+          placeholder={placeholder}
+        />
+      </label>
+      <div className="space-y-1.5 text-sm">
+        <span className="font-medium">{t('realValue')}</span>
+        <output className="block rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 font-mono font-semibold text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {result ?? '—'}
+        </output>
+      </div>
+    </div>
+  )
 
   return (
     <Card>
-      <h2 className="mb-2 text-base font-semibold">{t('moneyFactorTitle')}</h2>
-      {factor && (
-        <>
-          <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">{t('moneyFactorHelp')}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-medium">{t('moneyFactorInput')}</span>
-              <input
-                inputMode="decimal"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className={cx(inputBase, 'block w-full font-mono')}
-                placeholder="123456789"
-              />
-            </label>
-            <div className="space-y-1 text-sm">
-              <span className="font-medium">{t('moneyFactorResult')}</span>
-              <output className="block rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-mono font-semibold text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
-                {real === null ? '—' : real.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 2 })}
-              </output>
-            </div>
-          </div>
-        </>
-      )}
-      {rounded.length > 0 && (
-        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t('moneyRoundedNote', { cols: rounded.join(', ') })}</p>
-      )}
+      <h2 className="mb-1 flex items-center gap-1.5 text-lg font-semibold tracking-tight">
+        {t('toolsTitle')} <Hint text={t('toolsHint')} align="start" />
+      </h2>
+      <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">{t('toolsHint')}</p>
+      <div className="space-y-5">
+        {factor !== null &&
+          field(
+            t('moneyFactorInput'),
+            amount,
+            setAmount,
+            '3,311,000',
+            realAmount === null ? null : realAmount.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 2 }),
+          )}
+        {offsetDays !== null && field(t('dateInput'), date, setDate, '15/11/2026', realDate)}
+      </div>
     </Card>
   )
 }
