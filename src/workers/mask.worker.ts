@@ -2,19 +2,22 @@
 import * as XLSX from 'xlsx'
 import { detectType } from '../lib/detectType'
 import { readWorkbook, writeWorkbook, type FileFormat } from '../lib/io'
+import { stringifyMapping } from '../lib/mapping'
 import { maskWorkbook } from '../lib/masker'
 import { columnKey } from '../lib/normalize'
-import { cellText, headersOf, rowsOf } from '../lib/sheet'
+import { cellText, dropSheets, headersOf, rowsOf } from '../lib/sheet'
 import { toWorkerError, type ColumnInfo, type MaskRequest, type MaskResponse, type SheetInfo, type WorkbookInfo } from './protocol'
 
 declare const self: DedicatedWorkerGlobalScope
 
-const PREVIEW_ROWS = 10
+const PREVIEW_ROWS = 5
 const SAMPLE_ROWS = 200
-const SAMPLE_DISPLAY = 4
+const SAMPLE_DISPLAY = 3
 
-// The original file is kept so every "mask" run starts from untouched data.
-let source: { buffer: ArrayBuffer; fileName: string; format: FileFormat } | null = null
+// The original file is kept so every "mask" run starts from untouched data. The workbook
+// parsed on load is handed to the first run (masking changes it), which saves parsing
+// a big file twice.
+let source: { buffer: ArrayBuffer; fileName: string; format: FileFormat; parsed: XLSX.WorkBook | null } | null = null
 
 function post(msg: MaskResponse, transfer: Transferable[] = []) {
   self.postMessage(msg, transfer)
@@ -75,7 +78,7 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
       const { wb, format } = readWorkbook(msg.buffer, msg.fileName)
       const info = describe(wb, msg.fileName, format)
       if (info.sheets.length === 0) return post({ type: 'error', code: 'empty', details: [] })
-      source = { buffer: msg.buffer, fileName: msg.fileName, format }
+      source = { buffer: msg.buffer, fileName: msg.fileName, format, parsed: wb }
       post({ type: 'loaded', info })
     } catch (err) {
       post(toWorkerError(err, 'read-failed'))
@@ -86,25 +89,34 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
   if (msg.type === 'mask') {
     if (!source) return post({ type: 'error', code: 'empty', details: [] })
     try {
-      const { wb, format } = readWorkbook(source.buffer, source.fileName)
+      const { format } = source
+      let wb = source.parsed
+      source.parsed = null
+      if (!wb) {
+        post({ type: 'progress', done: 0, total: 1, phase: 'read' })
+        wb = readWorkbook(source.buffer, source.fileName).wb
+      }
+      dropSheets(wb, msg.skipSheets)
       const result = maskWorkbook(wb, msg.configs, {
         sourceFile: source.fileName,
         outputFormat: format,
-        onProgress: (done, total) => post({ type: 'progress', done, total }),
+        onProgress: (done, total) => post({ type: 'progress', done, total, phase: 'mask' }),
       })
+      post({ type: 'progress', done: 0, total: 1, phase: 'write' })
       const bytes = writeWorkbook(wb, format)
       const masked = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+      const mapping = new TextEncoder().encode(stringifyMapping(result.mapping)).buffer as ArrayBuffer
       post(
         {
           type: 'masked',
           masked,
           format,
-          mappingJson: JSON.stringify(result.mapping, null, 2),
+          mapping,
           stats: result.stats,
           warnings: result.warnings,
           maskedCells: result.maskedCells,
         },
-        [masked],
+        [masked, mapping],
       )
     } catch (err) {
       post(toWorkerError(err))

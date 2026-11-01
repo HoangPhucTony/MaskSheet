@@ -52,7 +52,9 @@ flowchart LR
 | 👀 **Xem trước trực tiếp** | Mỗi cách che có ví dụ thật lấy từ dữ liệu của bạn, chuyển nhanh giữa "AI sẽ thấy" và "Dữ liệu gốc". |
 | ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
 | 🛡️ **Kiểm tra an toàn** | Cảnh báo SĐT/email/CCCD còn sót ở cột chưa che; từ chối khi dữ liệu gốc đã có chuỗi giống mã; báo mã do AI tự bịa ra. |
-| ⚡ **File lớn** | Xử lý trong Web Worker, có thanh tiến trình, UI không bị treo. |
+| 🔖 **Template** | Lưu các cột cần che, cách che và sheet cần xử lý; lần sau chọn template rồi tải file là các cột được chọn sẵn. Template chỉ chứa tên cột, không chứa dữ liệu. |
+| 📑 **Chọn sheet** | Bỏ tick sheet không cần, sheet đó sẽ không có trong file gửi AI. |
+| ⚡ **File lớn** | Xử lý trong Web Worker, có thanh tiến trình theo từng bước, UI không bị treo. Đã thử với 50.000–100.000 dòng. Hiện dung lượng file trước khi tải để đối chiếu. |
 | 🌗 **Thân thiện** | Tiếng Việt / English, giao diện sáng/tối, dùng tốt trên điện thoại, có hướng dẫn khi di chuột. |
 
 ### 🧰 Các cách che dữ liệu
@@ -80,6 +82,7 @@ flowchart LR
    - **Bấm vào tiêu đề cột** (hoặc bất kỳ ô nào) trên bảng để chọn cột cần ẩn danh, giống chọn cột trong Excel. Bấm lại cột đang chọn để bỏ chọn. Hoặc bấm *Chọn theo gợi ý*.
    - Ở khung bên dưới bảng, chọn **loại dữ liệu** và **cách ẩn danh**. Mỗi cách đều có ví dụ thật lấy từ file của bạn.
    - Bảng hiển thị luôn *AI sẽ thấy gì*. Kiểm tra xong thì bấm **Che dữ liệu**.
+   - Muốn dùng lại cho các file sau: bấm **Lưu template**. Lần sau chọn template (hoặc tải file `.template.json`) trước khi tải file lên.
    - Tải về 2 file:
      - `…_masked.xlsx`: gửi file này cho AI.
      - `…_mapping_PRIVATE.json`: giữ riêng, **không gửi AI**.
@@ -187,7 +190,9 @@ MaskSheet replaces sensitive values in Excel/CSV files with anonymous codes or r
 - 👀 **Live preview.** Every method shows a real example taken from your data.
 - ↺ **Restore** from pasted AI text or from returned `.xlsx`/`.csv` files.
 - 🛡️ **Safety checks.** Warns about PII left in unmasked columns, refuses when the data already contains code-like text, and reports codes the AI invented.
-- ⚡ **Web Workers** with progress, so large files don't freeze the page.
+- 🔖 **Templates.** Save the selected columns, methods and sheets; next time pick the template, load the file and the columns are selected for you. Templates hold column names only.
+- 📑 **Sheet selection.** Untick a sheet to leave it out of the file you send to the AI.
+- ⚡ **Web Workers** with step-by-step progress, so large files (tested with 50,000–100,000 rows) don't freeze the page. File sizes are shown before downloading.
 - 🌗 **Easy to use.** Vietnamese / English, light & dark themes, mobile friendly, hover tooltips everywhere.
 
 ### Masking methods

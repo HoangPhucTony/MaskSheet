@@ -6,7 +6,7 @@ import { parseTextDate, shiftTextDate } from '../lib/dates'
 import { divideBack, parseNumber } from '../lib/money'
 import type { UnmaskStats } from '../lib/unmasker'
 import { useWorker } from '../useWorker'
-import { confirmBigFile, cx, downloadBlob, errorText, MIME } from '../util'
+import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
 import type { UnmaskRequest, UnmaskResponse } from '../workers/protocol'
 import { FileDropzone } from './FileDropzone'
 import { CopyIcon, DownloadIcon, FileIcon, KeyIcon, XIcon } from './icons'
@@ -249,6 +249,7 @@ export function UnmaskPanel() {
                   }
                 >
                   <DownloadIcon /> {t('downloadRestored')}
+                  <span className="font-normal opacity-80">· {formatBytes(result.buffer.byteLength)}</span>
                 </button>
               )}
             </>

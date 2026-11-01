@@ -18,13 +18,16 @@ interface Props {
   /** Click on the header checkbox: switch the column on/off without opening anything. */
   onToggle: (key: string) => void
   showOriginal: boolean
+  /** Sheets left out of the masked file. */
+  skipSheets: ReadonlySet<string>
+  onToggleSheet: (name: string) => void
 }
 
 /**
  * The file shown as a spreadsheet. Columns are picked horizontally by clicking their
  * header or any of their cells; picked columns show what the AI will see.
  */
-export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onToggle, showOriginal }: Props) {
+export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onToggle, showOriginal, skipSheets, onToggleSheet }: Props) {
   const { t } = useI18n()
   const [activeSheet, setActiveSheet] = useState(0)
   const [hoverCol, setHoverCol] = useState<number | null>(null)
@@ -60,6 +63,7 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onTogg
     )
   }, [sheets, configs])
   const shown = showOriginal ? rows : masked[sheets.indexOf(sheet)]
+  const skipped = skipSheets.has(sheet.name)
 
   const colState = (c: number) => {
     const key = sheet.keys[c]
@@ -69,7 +73,16 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onTogg
 
   return (
     <div data-column-grid className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-      <div ref={scrollRef} className="max-h-[30rem] overflow-auto" onMouseLeave={() => setHoverCol(null)}>
+      {skipped && (
+        <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
+          {t('sheetSkippedNote', { name: sheet.name })}
+        </p>
+      )}
+      <div
+        ref={scrollRef}
+        className={cx('max-h-[30rem] overflow-auto transition-opacity', skipped && 'opacity-40')}
+        onMouseLeave={() => setHoverCol(null)}
+      >
         <table className="w-max min-w-full border-separate border-spacing-0 text-sm select-none">
           <thead className="sticky top-0 z-20">
             {/* Column letters, like Excel */}
@@ -201,23 +214,45 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onTogg
 
       {/* Sheet tabs at the bottom, like Excel */}
       <div className="flex items-center gap-1 overflow-x-auto border-t border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900">
-        {sheets.map((s, i) => (
-          <button
-            key={s.name}
-            type="button"
-            role="tab"
-            aria-selected={s === sheet}
-            onClick={() => setActiveSheet(i)}
-            className={cx(
-              'shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition',
-              s === sheet
-                ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-emerald-300 dark:ring-slate-700'
-                : 'text-slate-500 hover:bg-white/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white',
-            )}
-          >
-            {s.name}
-          </button>
-        ))}
+        {sheets.map((s, i) => {
+          const off = skipSheets.has(s.name)
+          return (
+            <span
+              key={s.name}
+              className={cx(
+                'flex shrink-0 items-center rounded-lg transition',
+                s === sheet
+                  ? 'bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-700'
+                  : 'hover:bg-white/70 dark:hover:bg-slate-800',
+              )}
+            >
+              {/* With one sheet there is nothing to choose. */}
+              {sheets.length > 1 && (
+                <input
+                  type="checkbox"
+                  checked={!off}
+                  onChange={() => onToggleSheet(s.name)}
+                  title={t('sheetToggle')}
+                  aria-label={`${t('sheetToggle')} ${s.name}`}
+                  className="ml-2 size-3.5 cursor-pointer accent-emerald-600"
+                />
+              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={s === sheet}
+                onClick={() => setActiveSheet(i)}
+                className={cx(
+                  'px-2.5 py-1 text-xs font-medium',
+                  s === sheet ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
+                  off && 'line-through opacity-60',
+                )}
+              >
+                {s.name}
+              </button>
+            </span>
+          )
+        })}
         <span className="ml-auto shrink-0 pl-3 text-[11px] text-slate-400">
           {t('rowsShown', { n: rows.length, total: sheet.rowCount.toLocaleString() })}
         </span>

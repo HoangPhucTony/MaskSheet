@@ -67,7 +67,7 @@ export const vi = {
   prefixInvalid: 'Chỉ gồm chữ IN HOA, số và dấu _, bắt đầu bằng chữ',
   sharedPrefix: 'Dùng chung bảng mã với cột khác',
   preview: 'Xem trước',
-  previewHint: 'Hiển thị dòng tiêu đề và 10 dòng đầu. Chuyển sang "Sau khi che" để xem minh họa kết quả.',
+  previewHint: 'Hiển thị dòng tiêu đề và 5 dòng đầu. Chuyển sang "Sau khi che" để xem minh họa kết quả.',
   previewBefore: 'Gốc',
   previewAfter: 'Sau khi che',
   previewNote: 'Tiêu đề + {n} dòng đầu. Cột tô màu sẽ được che.',
@@ -181,6 +181,39 @@ export const vi = {
   dateInput: 'Ngày AI đưa ra (dd/mm/yyyy)',
   realValue: 'Giá trị thật',
 
+  // Templates
+  templateTitle: 'Template (không bắt buộc)',
+  templateHint:
+    'Template ghi nhớ các cột cần che, cách che và các sheet cần xử lý. Chọn template trước rồi tải file lên: các cột trùng tên được chọn sẵn. Template chỉ chứa tên cột, không chứa dữ liệu.',
+  templateUpload: 'Tải template (.json)',
+  templateActive: 'Sẽ áp dụng «{name}» cho file bạn tải lên',
+  templateClear: 'Bỏ template',
+  templateDelete: 'Xóa khỏi trình duyệt',
+  templateSave: 'Lưu template',
+  templateSaveHint: 'Lưu các cột đang chọn, cách che và sheet cần xử lý để dùng lại cho những file sau.',
+  templateName: 'Tên template',
+  templateSaveBrowser: 'Lưu vào trình duyệt',
+  templateDownload: 'Tải file .json',
+  templateSavedOk: 'Đã lưu template «{name}» vào trình duyệt.',
+  templateStorageFailed: 'Không lưu được vào trình duyệt (bộ nhớ bị chặn hoặc đầy). Hãy dùng "Tải file .json".',
+  templateApplied: 'Đã áp dụng template «{name}»: khớp {matched}/{total} cột.',
+  templateMissing: 'Không tìm thấy cột: {headers}.',
+  templateSkipped: 'Bỏ {n} sheet theo template: {sheets}.',
+  templateSheetsNotFound: 'File không có sheet nào trùng tên trong template ({sheets}), nên giữ tất cả sheet.',
+  templateSuggest: 'File này khớp với template «{name}» ({n} cột).',
+  templateApply: 'Áp dụng',
+
+  // Sheets
+  sheetToggle: 'Xử lý sheet này. Bỏ tick để loại sheet khỏi file đã che.',
+  sheetSkippedNote: 'Sheet «{name}» đang bị bỏ: sheet này sẽ không có trong file đã che.',
+  sheetsSkipped: '{n} sheet bị bỏ',
+
+  // Progress and sizes
+  loadingFile: 'Đang đọc {name} ({size})…',
+  phaseRead: 'Đang đọc lại file gốc…',
+  phaseWrite: 'Đang ghi file kết quả…',
+  originalSize: 'gốc {size}',
+
   // Errors
   err_read_failed: 'Không đọc được file. File có thể bị hỏng, có mật khẩu, hoặc không phải Excel/CSV.',
   err_empty: 'File không có dữ liệu.',
@@ -194,6 +227,7 @@ export const vi = {
   err_unknown: 'Có lỗi không mong muốn: {details}',
   err_worker_crashed: 'Bộ xử lý bị dừng đột ngột (thường do hết bộ nhớ). Hãy thử với file nhỏ hơn hoặc CSV.',
   err_wrong_file_json: 'Đây là file .json — có phải file mapping? Hãy tải nó ở ô mapping bên trên.',
+  err_template: 'File .json này không phải template MaskSheet. File mapping thì dùng ở tab "Khôi phục".',
 }
 
 export type Dict = typeof vi

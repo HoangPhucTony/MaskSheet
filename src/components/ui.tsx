@@ -73,13 +73,14 @@ export function Alert({ kind, title, children }: { kind: AlertKind; title?: Reac
   )
 }
 
-export function ProgressBar({ pct, label }: { pct: number; label: string }) {
+/** `pulse`: a step whose progress cannot be measured (e.g. parsing the file) is running. */
+export function ProgressBar({ pct, label, pulse }: { pct: number; label: string; pulse?: boolean }) {
   return (
     <div className="space-y-2" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
       <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{label}</p>
       <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-[width] duration-200"
+          className={cx('h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-[width] duration-200', pulse && 'animate-pulse')}
           style={{ width: `${Math.max(3, pct)}%` }}
         />
       </div>

@@ -29,6 +29,40 @@ export function isEmptyCell(cell: Cell | undefined): boolean {
   return cellText(cell).trim() === ''
 }
 
+/**
+ * Shrink a sheet's range to the cells that hold a value. Some files declare a range far
+ * larger than their data (e.g. A1:XFD1048576), which would otherwise mean scanning a
+ * million rows and showing 16,384 columns.
+ */
+export function trimRange(ws: XLSX.WorkSheet): void {
+  const range = rangeOf(ws)
+  if (!range) return
+  const rows = rowsOf(ws)
+  let lastRow = -1
+  let lastCol = -1
+  for (let r = range.s.r; r <= Math.min(range.e.r, rows.length - 1); r++) {
+    const row = rows[r]
+    if (!row) continue
+    for (let c = Math.min(range.e.c, row.length - 1); c >= range.s.c; c--) {
+      if (isEmptyCell(row[c])) continue
+      lastRow = r
+      if (c > lastCol) lastCol = c
+      break
+    }
+  }
+  if (lastRow < 0) delete ws['!ref']
+  else ws['!ref'] = XLSX.utils.encode_range({ s: range.s, e: { r: lastRow, c: lastCol } })
+}
+
+/** Remove sheets from a workbook, keeping the per-sheet metadata aligned. */
+export function dropSheets(wb: XLSX.WorkBook, names: string[]): void {
+  const drop = new Set(names)
+  const keep = wb.SheetNames.map((name) => !drop.has(name))
+  if (wb.Workbook?.Sheets) wb.Workbook.Sheets = wb.Workbook.Sheets.filter((_, i) => keep[i])
+  for (const name of drop) delete wb.Sheets[name]
+  wb.SheetNames = wb.SheetNames.filter((_, i) => keep[i])
+}
+
 export interface SheetHeaders {
   /** Index of the header row (first row of the used range). */
   headerRow: number

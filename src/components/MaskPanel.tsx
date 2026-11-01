@@ -4,31 +4,58 @@ import { suggestPrefix } from '../lib/detectType'
 import { methodsFor } from '../lib/fake'
 import { baseName } from '../lib/fileName'
 import type { DictionaryStats } from '../lib/masker'
+import {
+  applyTemplate,
+  bestTemplate,
+  loadSavedTemplates,
+  makeTemplate,
+  parseTemplate,
+  storeTemplates,
+  withTemplate,
+  type Template,
+  type TemplateResult,
+} from '../lib/template'
 import type { ColumnConfig, MaskWarning } from '../lib/types'
 import { useWorker } from '../useWorker'
 import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
-import type { MaskRequest, MaskResponse, WorkbookInfo, WorkerError } from '../workers/protocol'
+import type { MaskRequest, MaskResponse, Progress, WorkbookInfo, WorkerError } from '../workers/protocol'
 import { ColumnGrid } from './ColumnGrid'
 import { ColumnInspector } from './ColumnInspector'
 import { Popover } from './Popover'
 import { FileDropzone } from './FileDropzone'
-import { CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon, WandIcon, XIcon } from './icons'
+import { BookmarkIcon, CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon, WandIcon, XIcon } from './icons'
+import { TemplatePicker, TemplateSaver } from './Templates'
 import { Hint, Tooltip } from './Tooltip'
 import { TYPE_ICON } from './typeMeta'
 import { Alert, btnGhost, btnPrimary, btnSecondary, Card, ProgressBar } from './ui'
 
 type Stage = 'empty' | 'loading' | 'ready' | 'masking' | 'done'
 
+type Phase = NonNullable<Progress['phase']>
+
 interface MaskOutput {
   masked: ArrayBuffer
   format: 'xlsx' | 'csv'
-  mappingJson: string
+  /** Mapping file as UTF-8 JSON. */
+  mapping: ArrayBuffer
   stats: DictionaryStats[]
   warnings: MaskWarning[]
   maskedCells: number
 }
 
 const ACCEPT = '.xlsx,.xls,.csv,.tsv,.txt'
+
+/** What applying a template did, shown above the grid. */
+interface TemplateNote extends TemplateResult {
+  name: string
+  total: number
+  sheets?: string[]
+}
+
+/** A template name usable as a file name. */
+function fileSafe(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'template'
+}
 
 function initialConfigs(info: WorkbookInfo): Record<string, ColumnConfig> {
   const configs: Record<string, ColumnConfig> = {}
@@ -101,7 +128,15 @@ export function MaskPanel() {
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [touchedPrefix, setTouchedPrefix] = useState<Set<string>>(new Set())
-  const [progress, setProgress] = useState(0)
+  const [skipSheets, setSkipSheets] = useState<Set<string>>(new Set())
+  const [templates, setTemplates] = useState<Template[]>(loadSavedTemplates)
+  /** Template picked in step 1, applied to every file loaded while it stays picked. */
+  const [pendingTemplate, setPendingTemplate] = useState<Template | null>(null)
+  const [templateNote, setTemplateNote] = useState<TemplateNote | null>(null)
+  /** A saved template that fits the loaded file, offered with an "Apply" button. */
+  const [suggestedTemplate, setSuggestedTemplate] = useState<Template | null>(null)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [progress, setProgress] = useState<{ phase: Phase; pct: number }>({ phase: 'mask', pct: 0 })
   const [error, setError] = useState<string | null>(null)
   const [output, setOutput] = useState<MaskOutput | null>(null)
   const [downloaded, setDownloaded] = useState({ masked: false, mapping: false })
@@ -118,15 +153,24 @@ export function MaskPanel() {
     () => new Worker(new URL('../workers/mask.worker.ts', import.meta.url), { type: 'module' }),
     (msg) => {
       switch (msg.type) {
-        case 'loaded':
+        case 'loaded': {
           setInfo(msg.info)
-          setConfigs(initialConfigs(msg.info))
           setActiveKey(null)
-          setTouchedPrefix(new Set())
+          setSavingTemplate(false)
+          if (pendingTemplate) {
+            applyTemplateTo(pendingTemplate, msg.info)
+          } else {
+            setConfigs(initialConfigs(msg.info))
+            setTouchedPrefix(new Set())
+            setSkipSheets(new Set())
+            setTemplateNote(null)
+            setSuggestedTemplate(bestTemplate(templates, new Set(msg.info.columns.map((c) => c.key))))
+          }
           setStage('ready')
           break
+        }
         case 'progress':
-          setProgress((msg.done / Math.max(1, msg.total)) * 100)
+          setProgress({ phase: msg.phase ?? 'mask', pct: (msg.done / Math.max(1, msg.total)) * 100 })
           break
         case 'masked':
           setOutput(msg)
@@ -153,6 +197,7 @@ export function MaskPanel() {
     setStage('loading')
     try {
       const buffer = await getBuffer()
+      setFile({ name, size: buffer.byteLength })
       post({ type: 'load', buffer, fileName: name }, [buffer])
     } catch (err) {
       setError(errorText(t, { code: 'read-failed', details: [String(err)] }))
@@ -160,9 +205,19 @@ export function MaskPanel() {
     }
   }
 
+  /** A .json file is taken as a template (see TemplatePicker). */
+  const onTemplateFile = async (f: File) => {
+    setError(null)
+    try {
+      setPendingTemplate(parseTemplate(await f.text()))
+    } catch {
+      setError(t('err_template'))
+    }
+  }
+
   const onFile = (f: File) => {
     if (/\.json$/i.test(f.name)) {
-      setError(t('err_read_failed'))
+      void onTemplateFile(f)
       return
     }
     if (!confirmBigFile(t, f)) return
@@ -218,11 +273,59 @@ export function MaskPanel() {
     setActiveKey(null)
   }
 
+  /** Apply a template to the loaded file, replacing the current selection. */
+  const applyTemplateTo = (template: Template, fileInfo: WorkbookInfo) => {
+    const result = applyTemplate(template, initialConfigs(fileInfo), fileInfo.sheets.map((s) => s.name))
+    setConfigs(result.configs)
+    // Keep the template's prefixes even if the user changes a column's type later.
+    setTouchedPrefix(new Set(template.columns.map((c) => c.key)))
+    setSkipSheets(new Set(result.skipSheets))
+    setTemplateNote({ ...result, name: template.name, total: template.columns.length, sheets: template.sheets })
+    setSuggestedTemplate(null)
+    setActiveKey(null)
+  }
+
+  const toggleSheet = (name: string) => {
+    invalidateOutput()
+    setSkipSheets((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(name)) next.add(name)
+      return next
+    })
+  }
+
+  const currentTemplate = (name: string) =>
+    makeTemplate(
+      name,
+      info!.fileName,
+      Object.values(configs),
+      skipSheets.size ? info!.sheets.filter((s) => !skipSheets.has(s.name)).map((s) => s.name) : undefined,
+    )
+
+  const saveTemplate = (name: string) => {
+    const next = withTemplate(templates, currentTemplate(name))
+    setTemplates(next)
+    return storeTemplates(next)
+  }
+
+  const deleteTemplate = (name: string) => {
+    const next = templates.filter((tpl) => tpl.name !== name)
+    setTemplates(next)
+    storeTemplates(next)
+    if (pendingTemplate?.name === name) setPendingTemplate(null)
+  }
+
   const mask = () => {
     setError(null)
-    setProgress(0)
+    setProgress({ phase: 'mask', pct: 0 })
     setStage('masking')
-    post({ type: 'mask', configs: Object.values(configs) })
+    setSavingTemplate(false)
+    // Columns found only in left-out sheets are not masked (and get no dictionary).
+    post({
+      type: 'mask',
+      configs: Object.values(configs).map((c) => (liveKeys.has(c.key) ? c : { ...c, enabled: false })),
+      skipSheets: [...skipSheets],
+    })
   }
 
   const reset = () => {
@@ -232,15 +335,23 @@ export function MaskPanel() {
     setOutput(null)
     setError(null)
     setActiveKey(null)
+    setSkipSheets(new Set())
+    setTemplateNote(null)
+    setSuggestedTemplate(null)
+    setSavingTemplate(false)
   }
 
-  const selected = info ? info.columns.filter((c) => configs[c.key]?.enabled) : []
-  const totalRows = info?.sheets.reduce((n, s) => n + s.rowCount, 0) ?? 0
+  const liveKeys = new Set(info?.sheets.filter((s) => !skipSheets.has(s.name)).flatMap((s) => s.keys))
+  const selected = info ? info.columns.filter((c) => configs[c.key]?.enabled && liveKeys.has(c.key)) : []
+  const totalRows = info?.sheets.filter((s) => !skipSheets.has(s.name)).reduce((n, s) => n + s.rowCount, 0) ?? 0
   const base = info ? baseName(info.fileName) : ''
   const activeColumn = info?.columns.find((c) => c.key === activeKey) ?? null
   const prefixUse = (prefix: string) =>
     Object.values(configs).filter((c) => c.enabled && c.method === 'code' && c.prefix === prefix).length
   const step = stage === 'done' ? 2 : info && stage !== 'empty' && stage !== 'loading' ? 1 : 0
+  const progressPct = progress.phase === 'read' ? 3 : progress.phase === 'write' ? 95 : 5 + progress.pct * 0.88
+  const progressLabel =
+    progress.phase === 'read' ? t('phaseRead') : progress.phase === 'write' ? t('phaseWrite') : t('processing', { pct: Math.round(progress.pct) })
 
   return (
     <div className="space-y-6">
@@ -263,7 +374,21 @@ export function MaskPanel() {
                 <SparkIcon /> {t('trySample')}
               </button>
             </div>
-            {stage === 'loading' && <ProgressBar pct={30} label={file?.name ?? ''} />}
+            <TemplatePicker
+              templates={templates}
+              active={pendingTemplate}
+              disabled={stage === 'loading'}
+              onPick={setPendingTemplate}
+              onFile={(f) => void onTemplateFile(f)}
+              onDelete={deleteTemplate}
+            />
+            {stage === 'loading' && (
+              <ProgressBar
+                pct={30}
+                pulse
+                label={file?.size ? t('loadingFile', { name: file.name, size: formatBytes(file.size) }) : (file?.name ?? '')}
+              />
+            )}
             {error && <Alert kind="error">{error}</Alert>}
           </div>
         </Card>
@@ -281,7 +406,8 @@ export function MaskPanel() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{info.fileName}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t('sheetsInfo', { sheets: info.sheets.length, rows: totalRows.toLocaleString() })}
+                  {t('sheetsInfo', { sheets: info.sheets.length - skipSheets.size, rows: totalRows.toLocaleString() })}
+                  {skipSheets.size > 0 && ` (${t('sheetsSkipped', { n: skipSheets.size })})`}
                   {file && file.size > 0 && ` · ${formatBytes(file.size)}`}
                 </p>
               </div>
@@ -291,6 +417,34 @@ export function MaskPanel() {
             </div>
 
             <div className="space-y-4 p-4 sm:p-6">
+              {templateNote && (
+                <Alert kind={templateNote.matched === templateNote.total ? 'success' : 'warn'}>
+                  <p>{t('templateApplied', { name: templateNote.name, matched: templateNote.matched, total: templateNote.total })}</p>
+                  {templateNote.missing.length > 0 && <p>{t('templateMissing', { headers: templateNote.missing.join(', ') })}</p>}
+                  {templateNote.skipSheets.length > 0 && (
+                    <p>{t('templateSkipped', { n: templateNote.skipSheets.length, sheets: templateNote.skipSheets.join(', ') })}</p>
+                  )}
+                  {templateNote.sheetsNotFound && <p>{t('templateSheetsNotFound', { sheets: templateNote.sheets?.join(', ') ?? '' })}</p>}
+                </Alert>
+              )}
+              {suggestedTemplate && (
+                <Alert kind="info">
+                  <span className="flex flex-wrap items-center gap-2">
+                    {t('templateSuggest', { name: suggestedTemplate.name, n: suggestedTemplate.columns.length })}
+                    <button
+                      type="button"
+                      className="rounded-lg bg-sky-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-sky-700"
+                      onClick={() => {
+                        invalidateOutput()
+                        applyTemplateTo(suggestedTemplate, info)
+                      }}
+                    >
+                      {t('templateApply')}
+                    </button>
+                  </span>
+                </Alert>
+              )}
+
               {/* Toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -314,6 +468,21 @@ export function MaskPanel() {
                   <button type="button" className={btnGhost} onClick={() => setEnabled(() => false)}>
                     {t('selectNone')}
                   </button>
+                  <Tooltip content={t('templateSaveHint')} align="end">
+                    <button
+                      type="button"
+                      data-template-save
+                      aria-expanded={savingTemplate}
+                      className={cx(btnGhost, 'text-emerald-700 disabled:opacity-40 dark:text-emerald-400')}
+                      disabled={selected.length === 0}
+                      onClick={() => {
+                        setActiveKey(null)
+                        setSavingTemplate((v) => !v)
+                      }}
+                    >
+                      <BookmarkIcon /> {t('templateSave')}
+                    </button>
+                  </Tooltip>
                   <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block dark:bg-slate-700" />
                   <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs dark:bg-slate-800">
                     {([false, true] as const).map((orig) => (
@@ -345,6 +514,8 @@ export function MaskPanel() {
                 onOpen={open}
                 onToggle={toggle}
                 showOriginal={showOriginal}
+                skipSheets={skipSheets}
+                onToggleSheet={toggleSheet}
               />
 
               {/* Selected columns as chips */}
@@ -395,7 +566,7 @@ export function MaskPanel() {
             <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-xl shadow-slate-900/10 backdrop-blur-lg dark:border-slate-700 dark:bg-slate-900/90">
               {stage === 'masking' ? (
                 <div className="flex-1">
-                  <ProgressBar pct={progress} label={t('processing', { pct: Math.round(progress) })} />
+                  <ProgressBar pct={progressPct} pulse={progress.phase !== 'mask'} label={progressLabel} />
                 </div>
               ) : (
                 <>
@@ -432,6 +603,22 @@ export function MaskPanel() {
         </Popover>
       )}
 
+      {info && savingTemplate && stage !== 'empty' && stage !== 'loading' && (
+        <Popover
+          anchorKey="template-save"
+          anchor={() => document.querySelector<HTMLElement>('[data-template-save]')}
+          ignoreOutside={(el) => !!el.closest('[data-template-save]')}
+          onClose={() => setSavingTemplate(false)}
+          label={t('templateSave')}
+        >
+          <TemplateSaver
+            defaultName={templateNote?.name ?? base}
+            onSave={saveTemplate}
+            onDownload={(name) => downloadBlob(JSON.stringify(currentTemplate(name), null, 2), `${fileSafe(name)}.template.json`, MIME.json)}
+          />
+        </Popover>
+      )}
+
       {/* Step 3: download */}
       {stage === 'done' && output && (
         <div ref={resultRef} className="scroll-mt-24">
@@ -455,6 +642,10 @@ export function MaskPanel() {
                   subtitle={t('downloadMaskedHint')}
                   tip={t('downloadMaskedTip')}
                   fileName={`${base}_masked.${output.format}`}
+                  size={
+                    formatBytes(output.masked.byteLength) +
+                    (file?.size ? ` (${t('originalSize', { size: formatBytes(file.size) })})` : '')
+                  }
                   label={t('download')}
                   done={downloaded.masked}
                   onDownload={() => {
@@ -469,10 +660,11 @@ export function MaskPanel() {
                   subtitle={t('downloadMappingHint')}
                   tip={t('downloadMappingTip')}
                   fileName={`${base}_mapping_PRIVATE.json`}
+                  size={formatBytes(output.mapping.byteLength)}
                   label={t('download')}
                   done={downloaded.mapping}
                   onDownload={() => {
-                    downloadBlob(output.mappingJson, `${base}_mapping_PRIVATE.json`, MIME.json)
+                    downloadBlob(output.mapping, `${base}_mapping_PRIVATE.json`, MIME.json)
                     setDownloaded((d) => ({ ...d, mapping: true }))
                   }}
                 />
@@ -533,6 +725,8 @@ function DownloadCard(props: {
   subtitle: string
   tip: string
   fileName: string
+  /** File size, shown before downloading. */
+  size: string
   label: string
   done: boolean
   onDownload: () => void
@@ -564,6 +758,7 @@ function DownloadCard(props: {
             {props.subtitle}
           </p>
           <p className="mt-1 font-mono text-xs break-all text-slate-500">{props.fileName}</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">{props.size}</p>
         </div>
       </div>
       <button type="button" className={safe ? btnPrimary : btnSecondary} onClick={props.onDownload}>

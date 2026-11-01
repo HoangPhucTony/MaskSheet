@@ -59,11 +59,13 @@ export interface Progress {
   type: 'progress'
   done: number
   total: number
+  /** Step of a mask run: reading the file, masking rows, writing the output. */
+  phase?: 'read' | 'mask' | 'write'
 }
 
 export type MaskRequest =
   | { type: 'load'; buffer: ArrayBuffer; fileName: string }
-  | { type: 'mask'; configs: ColumnConfig[] }
+  | { type: 'mask'; configs: ColumnConfig[]; skipSheets: string[] }
 
 export type MaskResponse =
   | { type: 'loaded'; info: WorkbookInfo }
@@ -72,7 +74,8 @@ export type MaskResponse =
       type: 'masked'
       masked: ArrayBuffer
       format: FileFormat
-      mappingJson: string
+      /** Mapping file as UTF-8 JSON. */
+      mapping: ArrayBuffer
       stats: DictionaryStats[]
       warnings: MaskWarning[]
       maskedCells: number

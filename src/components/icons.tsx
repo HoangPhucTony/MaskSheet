@@ -151,3 +151,8 @@ export const ArrowRightIcon = (p: P) => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Icon>
 )
+export const BookmarkIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M6 3h12v18l-6-4-6 4z" />
+  </Icon>
+)

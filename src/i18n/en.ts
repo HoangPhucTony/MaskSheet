@@ -65,7 +65,7 @@ export const en: Dict = {
   prefixInvalid: 'UPPERCASE letters, digits and _, starting with a letter',
   sharedPrefix: 'Shares a dictionary with another column',
   preview: 'Preview',
-  previewHint: 'Header plus the first 10 rows. Switch to "Masked" for an illustration of the result.',
+  previewHint: 'Header plus the first 5 rows. Switch to "Masked" for an illustration of the result.',
   previewBefore: 'Original',
   previewAfter: 'Masked',
   previewNote: 'Header + first {n} rows. Highlighted columns will be masked.',
@@ -175,6 +175,39 @@ export const en: Dict = {
   dateInput: 'Date from the AI (dd/mm/yyyy)',
   realValue: 'Real value',
 
+  // Templates
+  templateTitle: 'Template (optional)',
+  templateHint:
+    'A template remembers which columns to mask, how, and which sheets to process. Pick a template, then load your file: columns with the same header are selected for you. Templates hold column names only, never data.',
+  templateUpload: 'Load template (.json)',
+  templateActive: '"{name}" will be applied to the file you load',
+  templateClear: 'Clear template',
+  templateDelete: 'Delete from this browser',
+  templateSave: 'Save template',
+  templateSaveHint: 'Save the selected columns, methods and sheets to reuse them on later files.',
+  templateName: 'Template name',
+  templateSaveBrowser: 'Save in this browser',
+  templateDownload: 'Download .json',
+  templateSavedOk: 'Template "{name}" saved in this browser.',
+  templateStorageFailed: 'Could not save in this browser (storage blocked or full). Use "Download .json" instead.',
+  templateApplied: 'Applied template "{name}": {matched}/{total} columns matched.',
+  templateMissing: 'Columns not found: {headers}.',
+  templateSkipped: 'Left out {n} sheet(s) per the template: {sheets}.',
+  templateSheetsNotFound: 'None of the template sheets ({sheets}) is in this file, so every sheet is kept.',
+  templateSuggest: 'This file matches template "{name}" ({n} columns).',
+  templateApply: 'Apply',
+
+  // Sheets
+  sheetToggle: 'Process this sheet. Untick to leave it out of the masked file.',
+  sheetSkippedNote: 'Sheet "{name}" is left out: it will not be in the masked file.',
+  sheetsSkipped: '{n} sheet(s) left out',
+
+  // Progress and sizes
+  loadingFile: 'Reading {name} ({size})…',
+  phaseRead: 'Re-reading the original file…',
+  phaseWrite: 'Writing the result file…',
+  originalSize: 'original {size}',
+
   err_read_failed: 'Could not read the file. It may be damaged, password-protected, or not Excel/CSV.',
   err_empty: 'The file has no data.',
   err_out_of_memory: 'The browser ran out of memory on this file. Save it as CSV or split it, then try again.',
@@ -187,4 +220,5 @@ export const en: Dict = {
   err_unknown: 'Unexpected error: {details}',
   err_worker_crashed: 'The processor stopped unexpectedly (usually out of memory). Try a smaller file or CSV.',
   err_wrong_file_json: 'This is a .json file — is it the mapping? Load it in the mapping box above.',
+  err_template: 'This .json file is not a MaskSheet template. Mapping files go in the "Restore" tab.',
 }

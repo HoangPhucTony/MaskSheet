@@ -55,6 +55,24 @@ export function fakeDictionaryKey(type: DataType): string {
   return `FAKE_${type.toUpperCase()}`
 }
 
+/**
+ * Serialize a mapping. Small fields are indented for people opening the file; dictionary
+ * entries take one line each, which keeps the mapping of a big sheet several times smaller.
+ */
+export function stringifyMapping(mapping: MappingFile): string {
+  const { dictionaries, ...rest } = mapping
+  const lines = (items: unknown[]) =>
+    items.length ? `[\n${items.map((x) => '        ' + JSON.stringify(x)).join(',\n')}\n      ]` : '[]'
+  const dicts = Object.entries(dictionaries).map(([key, d]) => {
+    const fields = [`"width": ${d.width}`, `"entries": ${lines(d.entries)}`]
+    if (d.fakes) fields.push(`"fakes": ${lines(d.fakes)}`)
+    return `    ${JSON.stringify(key)}: {\n      ${fields.join(',\n      ')}\n    }`
+  })
+  // Drop the closing "\n}" of the indented head and append the dictionaries.
+  const head = JSON.stringify(rest, null, 2).slice(0, -2)
+  return `${head},\n  "dictionaries": {${dicts.length ? `\n${dicts.join(',\n')}\n  ` : ''}}\n}\n`
+}
+
 export function formatCode(prefix: string, n: number, width: number): string {
   return `${prefix}_${String(n).padStart(width, '0')}`
 }

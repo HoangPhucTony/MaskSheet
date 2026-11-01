@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { suggestPrefix } from '../src/lib/detectType'
 import { readWorkbook, writeWorkbook } from '../src/lib/io'
-import { parseMapping, MappingError } from '../src/lib/mapping'
+import { parseMapping, MappingError, stringifyMapping } from '../src/lib/mapping'
 import { maskWorkbook } from '../src/lib/masker'
 import { columnKey } from '../src/lib/normalize'
-import { headersOf } from '../src/lib/sheet'
+import { dropSheets, headersOf } from '../src/lib/sheet'
 import type { ColumnConfig } from '../src/lib/types'
 import { divideBack } from '../src/lib/money'
 import { unmaskText, unmaskWorkbook } from '../src/lib/unmasker'
@@ -110,6 +111,19 @@ describe('unmaskText', () => {
   })
 })
 
+describe('mapping file', () => {
+  it('writes one line per dictionary entry and parses back to the same mapping', () => {
+    const wb = book({ S: [['Họ tên', 'SĐT', 'Tiền'], ['An "$&"', '0912345678', 100], ['Bình', '0987654321', 200]] })
+    const { mapping } = maskWorkbook(wb, [col('Họ tên', 'name'), col('SĐT', 'phone', { method: 'fake' }, 1), col('Tiền', 'money', {}, 2)], opts)
+    const json = stringifyMapping(mapping)
+    expect(parseMapping(json)).toEqual(mapping)
+    expect(json).toContain('\n        {"t":"s","v":"An \\"$&\\"","w":"An \\"$&\\""}')
+    expect(json.length).toBeLessThan(JSON.stringify(mapping, null, 2).length)
+    const empty = { ...mapping, dictionaries: {} }
+    expect(parseMapping(stringifyMapping(empty))).toEqual(empty)
+  })
+})
+
 describe('mapping validation', () => {
   it('rejects files that are not mappings', () => {
     expect(() => parseMapping('hello')).toThrowError(MappingError)
@@ -156,5 +170,31 @@ describe('sample.xlsx', () => {
     expect(mapping.dictionaries.CONFIDENTIAL_4.entries.map((e) => e.v)).toEqual(['NV01', 'NV02', 'NV03', 'NV04', 'NV05'])
     // Columns that were not selected are untouched.
     expect(s1.map((r) => r[9])).toEqual(before1.map((r) => r[9]))
+  })
+})
+
+describe('reading big or odd files', () => {
+  it('trims a declared range far larger than the data (e.g. A1:XFD1048576)', () => {
+    const files = unzipSync(writeWorkbook(book({ S: [['Họ tên', 'SĐT'], ['An', '0912345678']] }), 'xlsx'))
+    const sheet = 'xl/worksheets/sheet1.xml'
+    files[sheet] = strToU8(strFromU8(files[sheet]).replace(/<dimension ref="[^"]+"/, '<dimension ref="A1:XFD1048576"'))
+    const { wb } = readWorkbook(zipSync(files), 'x.xlsx')
+    const h = headersOf(wb.Sheets.S)!
+    expect(h.headers).toEqual(['Họ tên', 'SĐT'])
+    expect(h.lastRow).toBe(1)
+    // Writing used to crash on such sheets.
+    maskWorkbook(wb, [col('Họ tên', 'name')], opts)
+    expect(texts(readWorkbook(writeWorkbook(wb, 'xlsx'), 'x.xlsx').wb)).toEqual([['Họ tên', 'SĐT'], ['NAME_0001', '0912345678']])
+  })
+
+  it('drops sheets that were left out, keeping the others intact', () => {
+    const wb = book({ Data: [['Họ tên'], ['An']], Notes: [['Ghi chú'], ['x']], More: [['Họ tên'], ['Bình']] })
+    wb.Workbook = { Sheets: [{ Hidden: 0 }, { Hidden: 1 }, { Hidden: 0 }] }
+    dropSheets(wb, ['Notes'])
+    expect(wb.SheetNames).toEqual(['Data', 'More'])
+    expect(wb.Sheets.Notes).toBeUndefined()
+    expect(wb.Workbook.Sheets!.map((s) => s.Hidden)).toEqual([0, 0])
+    maskWorkbook(wb, [col('Họ tên', 'name')], opts)
+    expect(texts(wb, 'More')).toEqual([['Họ tên'], ['NAME_0002']])
   })
 })
