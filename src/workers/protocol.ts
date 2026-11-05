@@ -4,6 +4,9 @@ import type { ColumnConfig, MaskWarning } from '../lib/types'
 import type { UnmaskStats } from '../lib/unmasker'
 import type { FileFormat } from '../lib/io'
 
+/** Preview rows added each time the user asks to see more. */
+export const PREVIEW_PAGE = 20
+
 export interface SheetInfo {
   name: string
   /** Data rows, header excluded. */
@@ -11,24 +14,25 @@ export interface SheetInfo {
   /** Index of the first column (0 = A). */
   firstCol: number
   headers: string[]
-  /** Column keys aligned with `headers`. */
+  /** Column keys (see `sheetColumnKey`) aligned with `headers`. */
   keys: string[]
-  /** Header row + first rows, as display text. */
+  /** Header row + the rows loaded so far, as display text. */
   preview: string[][]
 }
 
-/** One logical column: every sheet column sharing the same header. */
+/** One column of one sheet. */
 export interface ColumnInfo {
+  /** See `sheetColumnKey`. */
   key: string
+  sheet: string
   header: string
-  /** Column index in the first sheet that has it. */
+  /** See `columnKey`; equal in columns with the same header in other sheets. */
+  headerKey: string
   colIndex: number
-  sheets: string[]
   /** A few distinct non-empty values, for display. */
   samples: string[]
+  /** Judged together with same-header columns in other sheets, so they start alike. */
   suggestion: Detection | null
-  /** Share of non-empty sampled cells that are numbers. */
-  numericRatio: number
 }
 
 export interface WorkbookInfo {
@@ -66,9 +70,12 @@ export interface Progress {
 export type MaskRequest =
   | { type: 'load'; buffer: ArrayBuffer; fileName: string }
   | { type: 'mask'; configs: ColumnConfig[]; skipSheets: string[] }
+  /** Load more preview rows; `start` counts data rows (0 = first row below the headers). */
+  | { type: 'rows'; sheet: string; start: number; count: number }
 
 export type MaskResponse =
   | { type: 'loaded'; info: WorkbookInfo }
+  | { type: 'rows'; sheet: string; start: number; rows: string[][] }
   | Progress
   | {
       type: 'masked'

@@ -1,7 +1,7 @@
 import type { DataType, Method, StoredValue } from './types'
 
 export const MAPPING_FORMAT = 'masksheet-mapping'
-export const MAPPING_VERSION = 2
+export const MAPPING_VERSION = 3
 
 export interface MappingColumn {
   sheet: string
@@ -31,6 +31,11 @@ export interface MappingFile {
   sourceFile: string
   /** Output format of the masked file. */
   outputFormat: 'xlsx' | 'csv'
+  /**
+   * Sheets of the masked file (version 3+). In these sheets amounts and dates are restored
+   * only in the columns listed in `columns`; other sheets are matched by header.
+   */
+  sheets?: string[]
   columns: MappingColumn[]
   /** Dictionary key (code prefix, or FAKE_<TYPE>) → dictionary. */
   dictionaries: Record<string, Dictionary>
@@ -96,7 +101,18 @@ function isStringArray(x: unknown): x is string[] {
   return Array.isArray(x) && x.every((s) => typeof s === 'string')
 }
 
-/** Parse and validate a mapping file (versions 1 and 2). Throws MappingError with a short reason. */
+function isMappingColumn(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    typeof x.sheet === 'string' &&
+    typeof x.header === 'string' &&
+    typeof x.method === 'string' &&
+    typeof x.column === 'string' &&
+    /^[A-Z]+$/.test(x.column)
+  )
+}
+
+/** Parse and validate a mapping file (versions 1 to 3). Throws MappingError with a short reason. */
 export function parseMapping(json: string): MappingFile {
   let data: unknown
   try {
@@ -105,8 +121,11 @@ export function parseMapping(json: string): MappingFile {
     throw new MappingError('not-json')
   }
   if (!isObject(data) || data.format !== MAPPING_FORMAT) throw new MappingError('not-mapping')
-  if (data.version !== 1 && data.version !== MAPPING_VERSION) throw new MappingError('bad-version')
+  if (data.version !== 1 && data.version !== 2 && data.version !== MAPPING_VERSION) throw new MappingError('bad-version')
   if (!isObject(data.dictionaries) || !Array.isArray(data.columns)) throw new MappingError('corrupt')
+  if (data.sheets !== undefined && !(isStringArray(data.sheets) && data.columns.every(isMappingColumn))) {
+    throw new MappingError('corrupt')
+  }
   for (const [key, dict] of Object.entries(data.dictionaries)) {
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) throw new MappingError('corrupt')
     if (!isObject(dict) || typeof dict.width !== 'number' || !Array.isArray(dict.entries)) {

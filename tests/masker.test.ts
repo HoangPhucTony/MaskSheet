@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { maskWorkbook, MaskError } from '../src/lib/masker'
+import { MaskError } from '../src/lib/masker'
 import { randomFactor, roundSignificant } from '../src/lib/money'
-import { book, col, opts, texts, values } from './helpers'
+import { book, col, maskWorkbook, opts, texts, values } from './helpers'
 
 describe('maskWorkbook — consistency', () => {
   it('gives equal values the same code and different values different codes', () => {

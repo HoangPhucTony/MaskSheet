@@ -4,15 +4,24 @@ import { colLetter } from '../lib/normalize'
 import { createPreviewer } from '../lib/preview'
 import type { ColumnConfig } from '../lib/types'
 import { cx } from '../util'
-import type { ColumnInfo, SheetInfo } from '../workers/protocol'
+import { PREVIEW_PAGE, type ColumnInfo, type SheetInfo } from '../workers/protocol'
 import { CheckIcon, WandIcon } from './icons'
 import { TYPE_ICON } from './typeMeta'
+import { btnGhost } from './ui'
 
 interface Props {
   sheets: SheetInfo[]
   columns: ColumnInfo[]
   configs: Record<string, ColumnConfig>
   activeKey: string | null
+  /** Index of the sheet on screen. */
+  activeSheet: number
+  onSelectSheet: (index: number) => void
+  /** Load the next preview rows of a sheet. */
+  onLoadMore: (sheet: SheetInfo) => void
+  loadingMore: boolean
+  /** A mask run is in progress. */
+  busy: boolean
   /** Click on a column (header or any cell): select it and open its settings. */
   onOpen: (key: string) => void
   /** Click on the header checkbox: switch the column on/off without opening anything. */
@@ -27,9 +36,23 @@ interface Props {
  * The file shown as a spreadsheet. Columns are picked horizontally by clicking their
  * header or any of their cells; picked columns show what the AI will see.
  */
-export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onToggle, showOriginal, skipSheets, onToggleSheet }: Props) {
+export function ColumnGrid({
+  sheets,
+  columns,
+  configs,
+  activeKey,
+  activeSheet,
+  onSelectSheet,
+  onLoadMore,
+  loadingMore,
+  busy,
+  onOpen,
+  onToggle,
+  showOriginal,
+  skipSheets,
+  onToggleSheet,
+}: Props) {
   const { t } = useI18n()
-  const [activeSheet, setActiveSheet] = useState(0)
   const [hoverCol, setHoverCol] = useState<number | null>(null)
   const sheet = sheets[Math.min(activeSheet, sheets.length - 1)]
   const [header, ...rows] = sheet.preview
@@ -210,6 +233,18 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onTogg
             ))}
           </tbody>
         </table>
+        {rows.length < sheet.rowCount && (
+          <div className="sticky left-0 border-t border-slate-200 px-2 py-1.5 dark:border-slate-800">
+            <button
+              type="button"
+              className={cx(btnGhost, 'text-emerald-700 disabled:opacity-50 dark:text-emerald-400')}
+              disabled={loadingMore || busy}
+              onClick={() => onLoadMore(sheet)}
+            >
+              {loadingMore ? t('loadingMore') : t('loadMore', { n: Math.min(PREVIEW_PAGE, sheet.rowCount - rows.length) })}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Sheet tabs at the bottom, like Excel */}
@@ -241,7 +276,7 @@ export function ColumnGrid({ sheets, columns, configs, activeKey, onOpen, onTogg
                 type="button"
                 role="tab"
                 aria-selected={s === sheet}
-                onClick={() => setActiveSheet(i)}
+                onClick={() => onSelectSheet(i)}
                 className={cx(
                   'px-2.5 py-1 text-xs font-medium',
                   s === sheet ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',

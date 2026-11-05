@@ -38,14 +38,19 @@ export function valueKey(type: DataType, text: string): string {
   }
 }
 
-/** Key used to match the same column across sheets. */
+/** Key used to compare headers, ignoring case and spacing. */
 export function headerKey(header: string): string {
   return normalizeSpace(header).toLowerCase()
 }
 
-/** Config key of a column: its header key, or its letter when the header is empty. */
+/** Name of a column independent of its sheet: its header key, or its letter when the header is empty. */
 export function columnKey(header: string, colIndex: number): string {
   return headerKey(header) || `#${colLetter(colIndex)}`
+}
+
+/** Identity of one column of one sheet, e.g. "A@Sheet1". Columns are selected by this key. */
+export function sheetColumnKey(sheet: string, colIndex: number): string {
+  return `${colLetter(colIndex)}@${sheet}`
 }
 
 /** Column index (0-based) → Excel letter: 0 → A, 26 → AA. */

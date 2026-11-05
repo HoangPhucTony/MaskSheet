@@ -4,11 +4,11 @@ import { detectType } from '../src/lib/detectType'
 import { makeFaker } from '../src/lib/fake'
 import { readWorkbook, writeWorkbook } from '../src/lib/io'
 import { MAPPING_FORMAT, parseMapping } from '../src/lib/mapping'
-import { maskWorkbook, MaskError } from '../src/lib/masker'
+import { MaskError } from '../src/lib/masker'
 import { rangeLabel } from '../src/lib/money'
 import { partialMask } from '../src/lib/partial'
 import { unmaskText, unmaskWorkbook } from '../src/lib/unmasker'
-import { book, col, opts, texts, values } from './helpers'
+import { book, col, maskWorkbook, opts, texts, values } from './helpers'
 
 function seeded(seed = 42) {
   let s = seed

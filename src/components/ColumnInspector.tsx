@@ -14,6 +14,10 @@ interface Props {
   column: ColumnInfo
   config: ColumnConfig
   sharedPrefix: boolean
+  multiSheet: boolean
+  /** Other sheets with a same-header column whose settings differ from this one. */
+  twinSheets: string[]
+  onApplyToTwins: () => void
   onChange: (patch: Partial<ColumnConfig>) => void
   onClose: () => void
 }
@@ -27,7 +31,7 @@ function SectionLabel({ children, hint }: { children: string; hint: string }) {
 }
 
 /** Compact settings for one column, shown in the popup next to its header. */
-export function ColumnInspector({ column, config, sharedPrefix, onChange, onClose }: Props) {
+export function ColumnInspector({ column, config, sharedPrefix, multiSheet, twinSheets, onApplyToTwins, onChange, onClose }: Props) {
   const { t } = useI18n()
   const sample = column.samples[0]
   const preview = createPreviewer()
@@ -48,8 +52,8 @@ export function ColumnInspector({ column, config, sharedPrefix, onChange, onClos
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-bold tracking-tight">{column.header || '—'}</p>
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {multiSheet && `${t('inSheet', { sheet: column.sheet })} — `}
             {column.samples.join(' · ')}
-            {column.sheets.length > 1 && ` — ${t('inSheets', { sheets: column.sheets.join(', ') })}`}
           </p>
         </div>
         <button
@@ -83,6 +87,16 @@ export function ColumnInspector({ column, config, sharedPrefix, onChange, onClos
             />
           </span>
         </button>
+
+        {config.enabled && twinSheets.length > 0 && (
+          <button
+            type="button"
+            onClick={onApplyToTwins}
+            className="w-full rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-medium text-sky-800 transition hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950"
+          >
+            {t('applyToTwins', { sheets: twinSheets.join(', ') })}
+          </button>
+        )}
 
         <div className={cx('space-y-4 transition', !config.enabled && 'pointer-events-none opacity-40')}>
           {/* Data type */}

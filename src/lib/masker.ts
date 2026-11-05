@@ -12,9 +12,9 @@ import {
   type MappingFile,
 } from './mapping'
 import { randomFactor, rangeLabel, roundSignificant } from './money'
-import { colLetter, columnKey, isValidPrefix, valueKey } from './normalize'
+import { colLetter, columnKey, isValidPrefix, sheetColumnKey, valueKey } from './normalize'
 import { partialMask, REDACTED } from './partial'
-import { cellNumber, cellText, headersOf, numberCell, rowsOf, stripWorkbook, textCell, toStored, type Cell } from './sheet'
+import { cellNumber, cellText, headersOf, isEmptyCell, numberCell, rowsOf, stripWorkbook, textCell, toStored, type Cell } from './sheet'
 import { METHODS, type ColumnConfig, type DataType, type MaskWarning, type StoredValue } from './types'
 
 export interface MaskOptions {
@@ -105,7 +105,7 @@ function planSheets(wb: XLSX.WorkBook, byKey: Map<string, ColumnConfig>): SheetP
     const plan: SheetPlan = { name, headerRow: h.headerRow, lastRow: h.lastRow, columns: [], unmasked: [] }
     h.headers.forEach((header, i) => {
       const col = h.firstCol + i
-      const config = byKey.get(columnKey(header, col))
+      const config = byKey.get(sheetColumnKey(name, col))
       if (config) plan.columns.push({ col, config })
       else plan.unmasked.push({ col, header })
     })
@@ -147,9 +147,9 @@ function checkCollisions(wb: XLSX.WorkBook, plans: SheetPlan[], prefixes: string
 
 /**
  * Mask the selected columns of a workbook in place and return the mapping needed to
- * undo the reversible methods. Columns are matched by header text in every sheet, so
- * equal values get equal codes everywhere. Codes are numbered in order of first
- * appearance (sheet, row, column).
+ * undo the reversible methods. Only the columns listed are touched, sheet by sheet.
+ * Columns sharing a prefix share a dictionary, so equal values get equal codes across
+ * them. Codes are numbered in order of first appearance (sheet, row, column).
  */
 export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: MaskOptions): MaskResult {
   const enabled = configs.filter((c) => c.enabled)
@@ -214,6 +214,16 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
       dict.fakes = d.entries.map(() => next())
     }
     dictionaries[key] = dict
+  }
+
+  // Where each header was masked, to flag columns with that header left as they are.
+  const maskedIn = new Map<string, Set<string>>()
+  for (const plan of plans) {
+    for (const { col, config } of plan.columns) {
+      const key = columnKey(config.header, col)
+      if (!maskedIn.has(key)) maskedIn.set(key, new Set())
+      maskedIn.get(key)!.add(plan.name)
+    }
   }
 
   // Pass 2: write the masked values.
@@ -298,6 +308,11 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
 
     // Look for obvious personal data in columns that were left as they are.
     for (const { col, header } of plan.unmasked) {
+      if (header && [...(maskedIn.get(columnKey(header, col)) ?? [])].some((sheet) => sheet !== plan.name)) {
+        let count = 0
+        for (let r = plan.headerRow + 1; r <= plan.lastRow; r++) if (!isEmptyCell(rows[r]?.[col])) count++
+        if (count) warnings.push({ kind: 'same-header-unmasked', sheet: plan.name, header, count })
+      }
       const counts = new Map<string, number>()
       for (let r = plan.headerRow + 1; r <= plan.lastRow; r++) {
         const cell = rows[r]?.[col]
@@ -319,7 +334,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
   stripWorkbook(wb)
   opts.onProgress?.(totalRows, totalRows)
 
-  const keysWith = (method: string) => enabled.filter((c) => c.method === method).map((c) => c.key)
+  const keysWith = (method: string) => [...new Set(enabled.filter((c) => c.method === method).map((c) => columnKey(c.header, c.col)))]
   const mapping: MappingFile = {
     format: MAPPING_FORMAT,
     version: MAPPING_VERSION,
@@ -327,6 +342,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
     createdAt: (opts.now ?? new Date()).toISOString(),
     sourceFile: opts.sourceFile,
     outputFormat: opts.outputFormat,
+    sheets: [...wb.SheetNames],
     columns: mappingColumns,
     dictionaries,
     ...(factor !== 1 ? { money: { factor, multipliedHeaders: keysWith('multiply') } } : {}),

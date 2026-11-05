@@ -4,8 +4,8 @@ import { detectType } from '../lib/detectType'
 import { readWorkbook, writeWorkbook, type FileFormat } from '../lib/io'
 import { stringifyMapping } from '../lib/mapping'
 import { maskWorkbook } from '../lib/masker'
-import { columnKey } from '../lib/normalize'
-import { cellText, dropSheets, headersOf, rowsOf } from '../lib/sheet'
+import { columnKey, sheetColumnKey } from '../lib/normalize'
+import { cellText, dropSheets, headersOf, readRows, rowsOf } from '../lib/sheet'
 import { toWorkerError, type ColumnInfo, type MaskRequest, type MaskResponse, type SheetInfo, type WorkbookInfo } from './protocol'
 
 declare const self: DedicatedWorkerGlobalScope
@@ -19,55 +19,66 @@ const SAMPLE_DISPLAY = 3
 // a big file twice.
 let source: { buffer: ArrayBuffer; fileName: string; format: FileFormat; parsed: XLSX.WorkBook | null } | null = null
 
+interface Sample {
+  texts: string[]
+  dates: number
+  filled: number
+}
+
 function post(msg: MaskResponse, transfer: Transferable[] = []) {
   self.postMessage(msg, transfer)
 }
 
 function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): WorkbookInfo {
   const sheets: SheetInfo[] = []
-  const columns = new Map<string, ColumnInfo & { _all: string[]; _numeric: number; _dates: number; _filled: number }>()
+  const columns: (ColumnInfo & { _all: Sample })[] = []
+  // Cells sampled per header, across sheets. Columns without a header are judged alone.
+  const byHeader = new Map<string, Sample>()
 
   for (const name of wb.SheetNames) {
     const h = headersOf(wb.Sheets[name])
     if (!h) continue
     const rows = rowsOf(wb.Sheets[name])
-    const keys = h.headers.map((header, i) => columnKey(header, h.firstCol + i))
-    const preview: string[][] = []
-    for (let r = h.headerRow; r <= Math.min(h.lastRow, h.headerRow + PREVIEW_ROWS); r++) {
-      const row = rows[r] ?? []
-      preview.push(h.headers.map((_, i) => cellText(row[h.firstCol + i])))
-    }
+    const keys = h.headers.map((_, i) => sheetColumnKey(name, h.firstCol + i))
+    const preview = [h.headers.map((_, i) => cellText(rows[h.headerRow]?.[h.firstCol + i])), ...readRows(wb.Sheets[name], h, 0, PREVIEW_ROWS)]
     sheets.push({ name, rowCount: h.lastRow - h.headerRow, firstCol: h.firstCol, headers: h.headers, keys, preview })
 
     h.headers.forEach((header, i) => {
       const c = h.firstCol + i
-      let info = columns.get(keys[i])
-      if (!info) {
-        info = { key: keys[i], header, colIndex: c, sheets: [], samples: [], suggestion: null, numericRatio: 0, _all: [], _numeric: 0, _dates: 0, _filled: 0 }
-        columns.set(keys[i], info)
+      const headerKey = columnKey(header, c)
+      const groupKey = header ? headerKey : keys[i]
+      let all = byHeader.get(groupKey)
+      if (!all) {
+        all = { texts: [], dates: 0, filled: 0 }
+        byHeader.set(groupKey, all)
       }
-      info.sheets.push(name)
+      const own: string[] = []
       for (let r = h.headerRow + 1; r <= Math.min(h.lastRow, h.headerRow + SAMPLE_ROWS); r++) {
         const cell = rows[r]?.[c]
         const text = cellText(cell)
         if (text.trim() === '') continue
-        info._all.push(text)
-        info._filled++
-        if (cell?.t === 'n') {
-          info._numeric++
-          if (typeof cell.z === 'string' && XLSX.SSF.is_date(cell.z)) info._dates++
-        }
+        own.push(text)
+        all.texts.push(text)
+        all.filled++
+        if (cell?.t === 'n' && typeof cell.z === 'string' && XLSX.SSF.is_date(cell.z)) all.dates++
       }
+      columns.push({
+        key: keys[i],
+        sheet: name,
+        header,
+        headerKey,
+        colIndex: c,
+        samples: [...new Set(own)].slice(0, SAMPLE_DISPLAY),
+        suggestion: null,
+        _all: all,
+      })
     })
   }
 
-  const list: ColumnInfo[] = []
-  for (const { _all, _numeric, _dates, _filled, ...info } of columns.values()) {
-    info.samples = [...new Set(_all)].slice(0, SAMPLE_DISPLAY)
-    info.numericRatio = _filled ? _numeric / _filled : 0
-    info.suggestion = detectType(info.header, _all, { dateRatio: _filled ? _dates / _filled : 0 })
-    list.push(info)
-  }
+  const list: ColumnInfo[] = columns.map(({ _all, ...info }) => ({
+    ...info,
+    suggestion: detectType(info.header, _all.texts, { dateRatio: _all.filled ? _all.dates / _all.filled : 0 }),
+  }))
   return { fileName, format, sheets, columns: list }
 }
 
@@ -82,6 +93,20 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
       post({ type: 'loaded', info })
     } catch (err) {
       post(toWorkerError(err, 'read-failed'))
+    }
+    return
+  }
+
+  if (msg.type === 'rows') {
+    if (!source) return post({ type: 'error', code: 'empty', details: [] })
+    try {
+      // After a mask run the workbook is gone; parse it again and keep it for the next run.
+      source.parsed ??= readWorkbook(source.buffer, source.fileName).wb
+      const ws = source.parsed.Sheets[msg.sheet]
+      const h = ws ? headersOf(ws) : null
+      post({ type: 'rows', sheet: msg.sheet, start: msg.start, rows: h ? readRows(ws, h, msg.start, msg.count) : [] })
+    } catch (err) {
+      post(toWorkerError(err))
     }
     return
   }

@@ -18,7 +18,7 @@ import {
 import type { ColumnConfig, MaskWarning } from '../lib/types'
 import { useWorker } from '../useWorker'
 import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
-import type { MaskRequest, MaskResponse, Progress, WorkbookInfo, WorkerError } from '../workers/protocol'
+import { PREVIEW_PAGE, type ColumnInfo, type MaskRequest, type MaskResponse, type Progress, type SheetInfo, type WorkbookInfo, type WorkerError } from '../workers/protocol'
 import { ColumnGrid } from './ColumnGrid'
 import { ColumnInspector } from './ColumnInspector'
 import { Popover } from './Popover'
@@ -59,15 +59,20 @@ function fileSafe(name: string): string {
 
 function initialConfigs(info: WorkbookInfo): Record<string, ColumnConfig> {
   const configs: Record<string, ColumnConfig> = {}
+  // Same header, same default prefix: if selected in several sheets, equal values get equal codes.
+  const firstCol = new Map<string, number>()
   for (const col of info.columns) {
+    if (!firstCol.has(col.headerKey)) firstCol.set(col.headerKey, col.colIndex)
     const type = col.suggestion?.type ?? 'custom'
     configs[col.key] = {
       key: col.key,
+      sheet: col.sheet,
+      col: col.colIndex,
       header: col.header,
       enabled: false,
       type,
       method: methodsFor(type)[0],
-      prefix: suggestPrefix(type, col.header, col.colIndex),
+      prefix: suggestPrefix(type, col.header, firstCol.get(col.headerKey)!),
     }
   }
   return configs
@@ -126,6 +131,8 @@ export function MaskPanel() {
   const [info, setInfo] = useState<WorkbookInfo | null>(null)
   const [configs, setConfigs] = useState<Record<string, ColumnConfig>>({})
   const [activeKey, setActiveKey] = useState<string | null>(null)
+  const [activeSheet, setActiveSheet] = useState(0)
+  const [loadingRows, setLoadingRows] = useState(false)
   const [showOriginal, setShowOriginal] = useState(false)
   const [touchedPrefix, setTouchedPrefix] = useState<Set<string>>(new Set())
   const [skipSheets, setSkipSheets] = useState<Set<string>>(new Set())
@@ -156,6 +163,8 @@ export function MaskPanel() {
         case 'loaded': {
           setInfo(msg.info)
           setActiveKey(null)
+          setActiveSheet(0)
+          setLoadingRows(false)
           setSavingTemplate(false)
           if (pendingTemplate) {
             applyTemplateTo(pendingTemplate, msg.info)
@@ -164,11 +173,24 @@ export function MaskPanel() {
             setTouchedPrefix(new Set())
             setSkipSheets(new Set())
             setTemplateNote(null)
-            setSuggestedTemplate(bestTemplate(templates, new Set(msg.info.columns.map((c) => c.key))))
+            setSuggestedTemplate(bestTemplate(templates, new Set(msg.info.columns.map((c) => c.headerKey))))
           }
           setStage('ready')
           break
         }
+        case 'rows':
+          setLoadingRows(false)
+          // Ignore an answer that no longer fits, e.g. from a file that was replaced meanwhile.
+          setInfo(
+            (cur) =>
+              cur && {
+                ...cur,
+                sheets: cur.sheets.map((s) =>
+                  s.name === msg.sheet && s.preview.length - 1 === msg.start ? { ...s, preview: [...s.preview, ...msg.rows] } : s,
+                ),
+              },
+          )
+          break
         case 'progress':
           setProgress({ phase: msg.phase ?? 'mask', pct: (msg.done / Math.max(1, msg.total)) * 100 })
           break
@@ -179,12 +201,14 @@ export function MaskPanel() {
           setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
           break
         case 'error':
-          fail(msg, stageRef.current === 'loading' ? 'empty' : 'ready')
+          setLoadingRows(false)
+          fail(msg, stageRef.current === 'loading' ? 'empty' : stageRef.current === 'done' ? 'done' : 'ready')
           break
       }
     },
     () => {
       setError(t('err_worker_crashed'))
+      setLoadingRows(false)
       setInfo(null)
       setStage('empty')
     },
@@ -250,6 +274,11 @@ export function MaskPanel() {
     })
   }
 
+  const loadMoreRows = (sheet: SheetInfo) => {
+    setLoadingRows(true)
+    post({ type: 'rows', sheet: sheet.name, start: sheet.preview.length - 1, count: PREVIEW_PAGE })
+  }
+
   /** Click on a column: select it and open its settings popup (click again to close). */
   const open = (key: string) => {
     if (!configs[key].enabled) update(key, { enabled: true })
@@ -267,6 +296,24 @@ export function MaskPanel() {
     setConfigs((prev) => Object.fromEntries(Object.entries(prev).map(([k, c]) => [k, { ...c, enabled: isOn(k) }])))
   }
 
+  /** Columns with the same header in other sheets, whose settings differ from this column's. */
+  const unsyncedTwins = (column: ColumnInfo): ColumnInfo[] => {
+    const cur = configs[column.key]
+    return (info?.columns ?? []).filter((c) => {
+      if (!c.header || c.headerKey !== column.headerKey || c.sheet === column.sheet || skipSheets.has(c.sheet)) return false
+      const other = configs[c.key]
+      return other.enabled !== cur.enabled || other.type !== cur.type || other.method !== cur.method || other.prefix !== cur.prefix
+    })
+  }
+
+  const applyToTwins = (column: ColumnInfo) => {
+    invalidateOutput()
+    const twins = unsyncedTwins(column).map((c) => c.key)
+    const { enabled, type, method, prefix } = configs[column.key]
+    setTouchedPrefix((s) => new Set([...s, ...twins]))
+    setConfigs((prev) => ({ ...prev, ...Object.fromEntries(twins.map((k) => [k, { ...prev[k], enabled, type, method, prefix }])) }))
+  }
+
   const selectSuggested = () => {
     const suggested = info?.columns.filter((c) => c.suggestion).map((c) => c.key) ?? []
     setEnabled((k) => suggested.includes(k))
@@ -278,7 +325,7 @@ export function MaskPanel() {
     const result = applyTemplate(template, initialConfigs(fileInfo), fileInfo.sheets.map((s) => s.name))
     setConfigs(result.configs)
     // Keep the template's prefixes even if the user changes a column's type later.
-    setTouchedPrefix(new Set(template.columns.map((c) => c.key)))
+    setTouchedPrefix(new Set(result.matchedKeys))
     setSkipSheets(new Set(result.skipSheets))
     setTemplateNote({ ...result, name: template.name, total: template.columns.length, sheets: template.sheets })
     setSuggestedTemplate(null)
@@ -320,7 +367,7 @@ export function MaskPanel() {
     setProgress({ phase: 'mask', pct: 0 })
     setStage('masking')
     setSavingTemplate(false)
-    // Columns found only in left-out sheets are not masked (and get no dictionary).
+    // Columns of left-out sheets are not masked (and get no dictionary).
     post({
       type: 'mask',
       configs: Object.values(configs).map((c) => (liveKeys.has(c.key) ? c : { ...c, enabled: false })),
@@ -335,6 +382,8 @@ export function MaskPanel() {
     setOutput(null)
     setError(null)
     setActiveKey(null)
+    setActiveSheet(0)
+    setLoadingRows(false)
     setSkipSheets(new Set())
     setTemplateNote(null)
     setSuggestedTemplate(null)
@@ -511,6 +560,11 @@ export function MaskPanel() {
                 columns={info.columns}
                 configs={configs}
                 activeKey={activeKey}
+                activeSheet={activeSheet}
+                onSelectSheet={setActiveSheet}
+                onLoadMore={loadMoreRows}
+                loadingMore={loadingRows}
+                busy={stage === 'masking'}
                 onOpen={open}
                 onToggle={toggle}
                 showOriginal={showOriginal}
@@ -538,9 +592,17 @@ export function MaskPanel() {
                           : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
                       )}
                     >
-                      <button type="button" className="inline-flex items-center gap-1.5 py-1 pr-1 pl-2.5" onClick={() => setActiveKey(c.key)}>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 py-1 pr-1 pl-2.5"
+                        onClick={() => {
+                          setActiveSheet(info.sheets.findIndex((s) => s.name === c.sheet))
+                          setActiveKey(c.key)
+                        }}
+                      >
                         <span aria-hidden="true">{TYPE_ICON[cfg.type]}</span>
                         <span className="max-w-[10rem] truncate">{c.header || '—'}</span>
+                        {info.sheets.length > 1 && <span className="max-w-[7rem] truncate opacity-70">({c.sheet})</span>}
                         <span className="opacity-70">· {t(`method_${cfg.method}` as TKey)}</span>
                       </button>
                       <button
@@ -597,6 +659,9 @@ export function MaskPanel() {
             column={activeColumn}
             config={configs[activeColumn.key]}
             sharedPrefix={prefixUse(configs[activeColumn.key].prefix) > 1}
+            multiSheet={info.sheets.length > 1}
+            twinSheets={[...new Set(unsyncedTwins(activeColumn).map((c) => c.sheet))]}
+            onApplyToTwins={() => applyToTwins(activeColumn)}
             onChange={(patch) => update(activeColumn.key, patch)}
             onClose={() => setActiveKey(null)}
           />
@@ -681,7 +746,9 @@ export function MaskPanel() {
                       <li key={i}>
                         {w.kind === 'pii-unmasked'
                           ? t('warnPii', { header: w.header, sheet: w.sheet, count: w.count, detail: t(`detail_${w.detail}` as TKey) })
-                          : t(`warnSkipped_${w.detail}` as TKey, { header: w.header, sheet: w.sheet, count: w.count })}
+                          : w.kind === 'same-header-unmasked'
+                            ? t('warnSameHeader', { header: w.header, sheet: w.sheet, count: w.count })
+                            : t(`warnSkipped_${w.detail}` as TKey, { header: w.header, sheet: w.sheet, count: w.count })}
                       </li>
                     ))}
                   </ul>

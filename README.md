@@ -45,10 +45,10 @@ flowchart LR
 | | |
 |---|---|
 | 🔐 **100% trên trình duyệt** | Không backend, không upload, không analytics. Được khóa bằng Content-Security-Policy. |
-| 🎯 **Nhất quán** | Cùng một giá trị luôn ra cùng một mã, kể cả ở sheet khác có cùng tên cột. AI vẫn đếm, nhóm, so sánh đúng. |
+| 🎯 **Nhất quán** | Cùng một giá trị luôn ra cùng một mã, kể cả ở các sheet khác nếu cột đó cũng được chọn. AI vẫn đếm, nhóm, so sánh đúng. |
 | 🧰 **9 cách che** | Mã ẩn danh, dữ liệu giả, che một phần, xóa trắng, nhân hệ số, làm tròn, khoảng giá trị, dịch ngày, chỉ giữ tháng. |
 | 🪄 **Tự nhận diện cột** | Gợi ý loại dữ liệu từ tên cột (Họ tên, SĐT, CCCD…) và nội dung (email, SĐT Việt Nam, ngày tháng). |
-| 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn. Cột đã chọn hiển thị ngay "AI sẽ thấy gì". |
+| 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn, mỗi sheet chọn riêng. Cột đã chọn hiển thị ngay "AI sẽ thấy gì". Bấm *Xem tiếp* để xem thêm dòng. |
 | 👀 **Xem trước trực tiếp** | Mỗi cách che có ví dụ thật lấy từ dữ liệu của bạn, chuyển nhanh giữa "AI sẽ thấy" và "Dữ liệu gốc". |
 | ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
 | 🛡️ **Kiểm tra an toàn** | Cảnh báo SĐT/email/CCCD còn sót ở cột chưa che; từ chối khi dữ liệu gốc đã có chuỗi giống mã; báo mã do AI tự bịa ra. |
@@ -183,10 +183,10 @@ MaskSheet replaces sensitive values in Excel/CSV files with anonymous codes or r
 ### Features
 
 - 🔐 **100% client-side.** No backend, no upload, no analytics, enforced by a `connect-src 'self'` Content-Security-Policy.
-- 🎯 **Consistent.** The same value always gets the same code, across columns and sheets, so the AI can still count, group and compare.
+- 🎯 **Consistent.** The same value always gets the same code, across every column you select in any sheet, so the AI can still count, group and compare.
 - 🧰 **9 masking methods**, listed below.
 - 🪄 **Auto-detects** names, phones, emails, national IDs, addresses, companies, amounts and dates.
-- 🖱️ **Excel-like column picking.** The file is shown as a spreadsheet; click column headers (A, B, C…) to select them and instantly see what the AI will get.
+- 🖱️ **Excel-like column picking.** The file is shown as a spreadsheet; click column headers (A, B, C…) to select them, sheet by sheet, and instantly see what the AI will get. Click *Show more* for further rows.
 - 👀 **Live preview.** Every method shows a real example taken from your data.
 - ↺ **Restore** from pasted AI text or from returned `.xlsx`/`.csv` files.
 - 🛡️ **Safety checks.** Warns about PII left in unmasked columns, refuses when the data already contains code-like text, and reports codes the AI invented.

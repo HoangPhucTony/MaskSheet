@@ -4,13 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { suggestPrefix } from '../src/lib/detectType'
 import { readWorkbook, writeWorkbook } from '../src/lib/io'
 import { parseMapping, MappingError, stringifyMapping } from '../src/lib/mapping'
-import { maskWorkbook } from '../src/lib/masker'
 import { columnKey } from '../src/lib/normalize'
 import { dropSheets, headersOf } from '../src/lib/sheet'
 import type { ColumnConfig } from '../src/lib/types'
 import { divideBack } from '../src/lib/money'
 import { unmaskText, unmaskWorkbook } from '../src/lib/unmasker'
-import { book, col, opts, texts, values } from './helpers'
+import { book, col, maskWorkbook, opts, texts, values } from './helpers'
 
 /** Mask → write → read back (as the AI would receive it) → unmask. */
 function roundTrip(wb: ReturnType<typeof book>, configs: ColumnConfig[], format: 'xlsx' | 'csv' = 'xlsx') {
@@ -140,7 +139,7 @@ describe('sample.xlsx', () => {
       h.headers.forEach((header, i) => {
         const key = columnKey(header, h.firstCol + i)
         if (header.startsWith('Confidential') && !configs.some((c) => c.key === key)) {
-          configs.push({ key, header, enabled: true, type: 'custom', method: 'code', prefix: suggestPrefix('custom', header, i) })
+          configs.push({ key, sheet: '', col: h.firstCol + i, header, enabled: true, type: 'custom', method: 'code', prefix: suggestPrefix('custom', header, i) })
         }
       })
     }

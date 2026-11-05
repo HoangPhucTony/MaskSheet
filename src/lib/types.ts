@@ -56,14 +56,13 @@ export const DEFAULT_PREFIX: Record<DataType, string> = {
   custom: 'COL',
 }
 
-/**
- * Masking settings for one column. Columns are identified by their header text,
- * so the same header in several sheets is masked the same way.
- */
+/** Masking settings for one column of one sheet. */
 export interface ColumnConfig {
-  /** Header key (see `columnKey`), shared across sheets. */
+  /** See `sheetColumnKey`. */
   key: string
-  /** Header as displayed in the first sheet where it appears. */
+  sheet: string
+  /** Column index in that sheet (0 = A). */
+  col: number
   header: string
   enabled: boolean
   type: DataType
@@ -85,8 +84,12 @@ export interface StoredValue {
 }
 
 export interface MaskWarning {
-  /** pii-unmasked: personal data found in a column left as is; skipped: cells the method could not handle. */
-  kind: 'pii-unmasked' | 'skipped'
+  /**
+   * pii-unmasked: personal data found in a column left as is; skipped: cells the method could
+   * not handle; same-header-unmasked: a column left as is although one with the same header
+   * was masked in another sheet.
+   */
+  kind: 'pii-unmasked' | 'skipped' | 'same-header-unmasked'
   sheet: string
   header: string
   count: number

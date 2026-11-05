@@ -1,5 +1,5 @@
 import { methodsFor } from './fake'
-import { isValidPrefix } from './normalize'
+import { columnKey, isValidPrefix } from './normalize'
 import { DATA_TYPES, type ColumnConfig, type DataType, type Method } from './types'
 
 /**
@@ -15,6 +15,8 @@ export interface TemplateColumn {
   /** Header key (see `columnKey`). */
   key: string
   header: string
+  /** Sheet the column was picked in. Absent in older templates, which apply to every sheet. */
+  sheet?: string
   type: DataType
   method: Method
   prefix: string
@@ -53,7 +55,7 @@ export function makeTemplate(
     ...(sheets ? { sheets } : {}),
     columns: configs
       .filter((c) => c.enabled)
-      .map(({ key, header, type, method, prefix }) => ({ key, header, type, method, prefix })),
+      .map(({ col, sheet, header, type, method, prefix }) => ({ key: columnKey(header, col), header, sheet, type, method, prefix })),
   }
 }
 
@@ -68,7 +70,8 @@ function isColumn(x: unknown): x is TemplateColumn {
     typeof x.header === 'string' &&
     DATA_TYPES.includes(x.type as DataType) &&
     typeof x.method === 'string' &&
-    typeof x.prefix === 'string'
+    typeof x.prefix === 'string' &&
+    (x.sheet === undefined || typeof x.sheet === 'string')
   )
 }
 
@@ -101,6 +104,8 @@ export function parseTemplate(json: string): Template {
 
 export interface TemplateResult {
   configs: Record<string, ColumnConfig>
+  /** Keys of the columns the template switched on. */
+  matchedKeys: string[]
   /** Sheets of the file to leave out. */
   skipSheets: string[]
   /** Template columns found in the file. */
@@ -112,28 +117,36 @@ export interface TemplateResult {
 }
 
 /**
- * Apply a template to a freshly loaded file: matching columns (same header) take the
- * template's settings and are switched on, every other column is switched off.
+ * Apply a template to a freshly loaded file: matching columns take the template's settings
+ * and are switched on, every other column is switched off. A column matches on its header
+ * and sheet; if the file has no sheet of that name (e.g. "T11" became "T12"), or the
+ * template names none, it matches on its header in every sheet.
  */
 export function applyTemplate(template: Template, base: Record<string, ColumnConfig>, sheetNames: string[]): TemplateResult {
   const configs: Record<string, ColumnConfig> = {}
   for (const [key, cfg] of Object.entries(base)) configs[key] = { ...cfg, enabled: false }
 
   let matched = 0
+  const matchedKeys = new Set<string>()
   const missing: string[] = []
+  const list = Object.values(base)
   for (const col of template.columns) {
-    const cfg = configs[col.key]
-    if (!cfg) {
+    const anySheet = col.sheet === undefined || !sheetNames.includes(col.sheet)
+    const targets = list.filter((c) => columnKey(c.header, c.col) === col.key && (anySheet || c.sheet === col.sheet))
+    if (targets.length === 0) {
       missing.push(col.header || col.key)
       continue
     }
     const allowed = methodsFor(col.type)
-    configs[col.key] = {
-      ...cfg,
-      enabled: true,
-      type: col.type,
-      method: allowed.includes(col.method) ? col.method : allowed[0],
-      prefix: isValidPrefix(col.prefix) ? col.prefix : cfg.prefix,
+    for (const cfg of targets) {
+      configs[cfg.key] = {
+        ...cfg,
+        enabled: true,
+        type: col.type,
+        method: allowed.includes(col.method) ? col.method : allowed[0],
+        prefix: isValidPrefix(col.prefix) ? col.prefix : cfg.prefix,
+      }
+      matchedKeys.add(cfg.key)
     }
     matched++
   }
@@ -141,10 +154,10 @@ export function applyTemplate(template: Template, base: Record<string, ColumnCon
   const keep = new Set(template.sheets ?? sheetNames)
   const sheetsNotFound = !sheetNames.some((s) => keep.has(s))
   const skipSheets = sheetsNotFound ? [] : sheetNames.filter((s) => !keep.has(s))
-  return { configs, skipSheets, matched, missing, sheetsNotFound }
+  return { configs, matchedKeys: [...matchedKeys], skipSheets, matched, missing, sheetsNotFound }
 }
 
-/** How many of a template's columns a file has. */
+/** How many of a template's columns a file has. `columnKeys` holds header keys (see `columnKey`). */
 export function matchCount(template: Template, columnKeys: ReadonlySet<string>): number {
   return template.columns.filter((c) => columnKeys.has(c.key)).length
 }

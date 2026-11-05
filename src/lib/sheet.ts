@@ -84,6 +84,18 @@ export function headersOf(ws: XLSX.WorkSheet): SheetHeaders | null {
   return { headerRow, firstCol: range.s.c, lastCol: range.e.c, lastRow: range.e.r, headers }
 }
 
+/** `count` data rows from data row `start` (0 = first row below the headers), as display text. */
+export function readRows(ws: XLSX.WorkSheet, h: SheetHeaders, start: number, count: number): string[][] {
+  const rows = rowsOf(ws)
+  const out: string[][] = []
+  const first = h.headerRow + 1 + start
+  for (let r = first; r <= Math.min(h.lastRow, first + count - 1); r++) {
+    const row = rows[r] ?? []
+    out.push(h.headers.map((_, i) => cellText(row[h.firstCol + i])))
+  }
+  return out
+}
+
 /** Capture a cell so it can be written back exactly later. */
 export function toStored(cell: Cell): StoredValue {
   const w = cellText(cell)

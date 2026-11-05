@@ -1,10 +1,10 @@
-import type * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx'
 import { shiftTextDate } from './dates'
 import { escapeRegex, PROGRESS_STEP } from './masker'
 import type { MappingFile } from './mapping'
 import { divideBack } from './money'
 import { columnKey } from './normalize'
-import { cellNumber, cellText, fromStored, headersOf, numberCell, rowsOf, textCell } from './sheet'
+import { cellNumber, cellText, fromStored, headersOf, numberCell, rowsOf, textCell, type SheetHeaders } from './sheet'
 import type { StoredValue } from './types'
 
 export interface UnmaskStats {
@@ -86,10 +86,37 @@ export function unmaskText(text: string, mapping: MappingFile): { text: string; 
 }
 
 /**
+ * Columns of a sheet that hold multiplied amounts or shifted dates. A sheet of the masked
+ * file uses the columns recorded for it, even if the AI moved them; any other sheet (made
+ * by the AI, or read from an older mapping file) is matched by header.
+ */
+function columnModes(name: string, h: SheetHeaders, mapping: MappingFile): Map<number, 'money' | 'date'> {
+  const modes = new Map<number, 'money' | 'date'>()
+  const keys = h.headers.map((header, i) => columnKey(header, h.firstCol + i))
+  if (mapping.sheets?.includes(name)) {
+    for (const c of mapping.columns) {
+      if (c.sheet !== name || (c.method !== 'multiply' && c.method !== 'shift')) continue
+      const at = XLSX.utils.decode_col(c.column)
+      const key = columnKey(c.header, at)
+      const i = keys[at - h.firstCol] === key ? at - h.firstCol : keys.indexOf(key)
+      if (i >= 0) modes.set(h.firstCol + i, c.method === 'multiply' ? 'money' : 'date')
+    }
+    return modes
+  }
+  const multiplied = new Set(mapping.money?.multipliedHeaders ?? [])
+  const shifted = new Set(mapping.dates?.shiftedHeaders ?? [])
+  keys.forEach((key, i) => {
+    if (multiplied.has(key)) modes.set(h.firstCol + i, 'money')
+    else if (shifted.has(key)) modes.set(h.firstCol + i, 'date')
+  })
+  return modes
+}
+
+/**
  * Restore a workbook in place. A cell that is exactly one code / fake value gets its
  * original typed value back (number, date...); tokens inside longer text are replaced by
- * display text. Columns whose header matches a multiplied amount column are divided by
- * the factor, and shifted date columns are shifted back.
+ * display text. Multiplied amount columns are divided by the factor and shifted date
+ * columns are shifted back (see `columnModes`).
  */
 export function unmaskWorkbook(
   wb: XLSX.WorkBook,
@@ -98,8 +125,6 @@ export function unmaskWorkbook(
 ): UnmaskStats {
   const stats = emptyStats()
   const unmasker = createUnmasker(mapping)
-  const multiplied = new Set(mapping.money?.multipliedHeaders ?? [])
-  const shifted = new Set(mapping.dates?.shiftedHeaders ?? [])
   const factor = mapping.money?.factor ?? 1
   const offset = mapping.dates?.offsetDays ?? 0
 
@@ -110,12 +135,7 @@ export function unmaskWorkbook(
   for (const { name, h } of sheets) {
     if (!h) continue
     const rows = rowsOf(wb.Sheets[name])
-    const columnMode = new Map<number, 'money' | 'date'>()
-    h.headers.forEach((header, i) => {
-      const key = columnKey(header, h.firstCol + i)
-      if (multiplied.has(key)) columnMode.set(h.firstCol + i, 'money')
-      else if (shifted.has(key)) columnMode.set(h.firstCol + i, 'date')
-    })
+    const columnMode = columnModes(name, h, mapping)
 
     for (let r = h.headerRow; r <= h.lastRow; r++) {
       const row = rows[r]

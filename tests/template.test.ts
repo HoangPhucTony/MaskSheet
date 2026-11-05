@@ -11,7 +11,7 @@ import {
   type Template,
 } from '../src/lib/template'
 import type { ColumnConfig, DataType } from '../src/lib/types'
-import { col } from './helpers'
+import { col, colIn } from './helpers'
 
 /** Configs as the app builds them for a freshly loaded file: everything off. */
 function base(headers: [string, DataType][]): Record<string, ColumnConfig> {
@@ -86,6 +86,44 @@ describe('templates', () => {
     expect(bestTemplate([small, big], keys)?.name).toBe('big')
     expect(bestTemplate([small, big], new Set(['họ tên']))?.name).toBe('small')
     expect(bestTemplate([small, big], new Set(['khác']))).toBeNull()
+  })
+
+  describe('with several sheets', () => {
+    const file = () =>
+      Object.fromEntries(
+        [colIn('X', 0, 'Họ tên', 'name'), colIn('Y', 0, 'Họ tên', 'name')].map((c) => [c.key, { ...c, enabled: false }]),
+      )
+
+    it('switches on a column only in the sheet it was saved from', () => {
+      const tpl = makeTemplate('T', 'a.xlsx', [colIn('X', 0, 'Họ tên', 'name')], undefined)
+      expect(JSON.parse(JSON.stringify(tpl)).columns[0].sheet).toBe('X')
+      const r = applyTemplate(parseTemplate(JSON.stringify(tpl)), file(), ['X', 'Y'])
+      expect(r.configs['A@X'].enabled).toBe(true)
+      expect(r.configs['A@Y'].enabled).toBe(false)
+      expect(r.matchedKeys).toEqual(['A@X'])
+    })
+
+    it('matches on the header in every sheet when the saved sheet is gone', () => {
+      const tpl = makeTemplate('T', 'a.xlsx', [colIn('T11', 0, 'Họ tên', 'name')], undefined)
+      const r = applyTemplate(tpl, file(), ['X', 'Y'])
+      expect(r.matched).toBe(1)
+      expect(r.configs['A@X'].enabled).toBe(true)
+      expect(r.configs['A@Y'].enabled).toBe(true)
+    })
+
+    it('applies older templates, which name no sheet, to every sheet', () => {
+      const tpl = makeTemplate('T', 'a.xlsx', [colIn('X', 0, 'Họ tên', 'name')], undefined)
+      const old = parseTemplate(JSON.stringify({ ...tpl, columns: tpl.columns.map(({ sheet: _sheet, ...c }) => c) }))
+      const r = applyTemplate(old, file(), ['X', 'Y'])
+      expect(r.configs['A@X'].enabled).toBe(true)
+      expect(r.configs['A@Y'].enabled).toBe(true)
+    })
+
+    it('reports a column as missing when its sheet exists without that header', () => {
+      const tpl = makeTemplate('T', 'a.xlsx', [colIn('X', 1, 'SĐT', 'phone')], undefined)
+      const r = applyTemplate(tpl, file(), ['X', 'Y'])
+      expect(r.missing).toEqual(['SĐT'])
+    })
   })
 
   it('replaces a saved template with the same name', () => {
