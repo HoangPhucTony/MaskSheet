@@ -13,15 +13,18 @@ export function selectionBySheet(
 /**
  * Tóm tắt các cột đã chọn, ví dụ "T11: Họ tên, Doanh thu · T12: SĐT".
  * Tên cột là header; nếu header rỗng thì dùng chữ cái cột (phần trước "@" của key).
- * Quá `max` cột trong một nhóm thì chỉ hiện `max` cột đầu và thêm " +N".
+ * `max` giới hạn TỔNG số tên hiện ra trên mọi sheet; phần còn lại gộp thành một " +N" ở cuối.
  */
 export function selectionSummary(
   selected: { sheet: string; header: string; key: string }[],
   opts: { withSheet: boolean; max?: number },
 ): string {
   const max = opts.max ?? 3
+  const shown = selected.slice(0, max)
+  const extra = selected.length - shown.length
+
   const groups = new Map<string, string[]>()
-  for (const col of selected) {
+  for (const col of shown) {
     const name = col.header.trim() || col.key.split('@')[0]
     const groupKey = opts.withSheet ? col.sheet : ''
     const names = groups.get(groupKey) ?? []
@@ -31,9 +34,8 @@ export function selectionSummary(
 
   const parts: string[] = []
   for (const [sheet, names] of groups) {
-    const shown = names.slice(0, max).join(', ')
-    const extra = names.length > max ? ` +${names.length - max}` : ''
-    parts.push(opts.withSheet ? `${sheet}: ${shown}${extra}` : `${shown}${extra}`)
+    parts.push(opts.withSheet ? `${sheet}: ${names.join(', ')}` : names.join(', '))
   }
-  return parts.join(' · ')
+  const suffix = extra > 0 ? ` +${extra}` : ''
+  return parts.join(' · ') + suffix
 }

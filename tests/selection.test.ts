@@ -18,4 +18,9 @@ describe('selectionSummary', () => {
     expect(selectionSummary([s('S', 'Họ tên', 'A@S'), s('S', '', 'B@S')], { withSheet: false })).toBe('Họ tên, B')
     expect(selectionSummary([], { withSheet: true })).toBe('')
   })
+
+  it('caps the total across sheets', () => {
+    expect(selectionSummary([s('T11', 'A', 'A@T11'), s('T11', 'B', 'B@T11'), s('T12', 'C', 'C@T12'), s('T12', 'D', 'D@T12')],
+      { withSheet: true, max: 3 })).toBe('T11: A, B · T12: C +1')
+  })
 })
