@@ -34,10 +34,10 @@ import { ColumnGrid } from './ColumnGrid'
 import { ColumnInspector } from './ColumnInspector'
 import { Popover } from './Popover'
 import { FileDropzone } from './FileDropzone'
-import { BookmarkIcon, CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon, WandIcon, XIcon } from './icons'
+import { BookmarkIcon, CheckIcon, DownloadIcon, FileIcon, KeyIcon, ShieldIcon, SparkIcon, WandIcon } from './icons'
+import { SelectionBar } from './SelectionBar'
 import { TemplatePicker, TemplateSaver } from './Templates'
 import { Hint, Tooltip } from './Tooltip'
-import { TYPE_ICON } from './typeMeta'
 import { Alert, btnGhost, btnPrimary, btnSecondary, Card, ProgressBar } from './ui'
 
 type Stage = 'empty' | 'loading' | 'ready' | 'masking' | 'done'
@@ -711,87 +711,29 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
                 skipSheets={skipSheets}
                 onToggleSheet={toggleSheet}
               />
-
-              {/* Selected columns as chips */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
-                  {t('selectedColumns')} ({selected.length})
-                </span>
-                {selected.length === 0 && <span className="text-sm text-slate-400">{t('selectedNone')}</span>}
-                {selected.map((c) => {
-                  const cfg = configs[c.key]
-                  const active = c.key === activeKey
-                  return (
-                    <span
-                      key={c.key}
-                      data-column-chip
-                      className={cx(
-                        'inline-flex items-center overflow-hidden rounded-full border text-xs font-medium transition',
-                        active
-                          ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
-                          : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
-                        badPrefix.includes(c) && 'ring-2 ring-red-500',
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1.5 py-1 pr-1 pl-2.5"
-                        onClick={() => {
-                          setActiveSheet(info.sheets.findIndex((s) => s.name === c.sheet))
-                          setActiveKey(c.key)
-                        }}
-                      >
-                        <span aria-hidden="true">{TYPE_ICON[cfg.type]}</span>
-                        <span className="max-w-[10rem] truncate">{c.header || '—'}</span>
-                        {info.sheets.length > 1 && <span className="max-w-[7rem] truncate opacity-70">({c.sheet})</span>}
-                        <span className="opacity-70">· {t(`method_${cfg.method}` as TKey)}</span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t('removeColumn')}
-                        title={t('removeColumn')}
-                        className="flex h-full items-center px-2 py-1 opacity-70 transition hover:opacity-100"
-                        onClick={() => update(c.key, { enabled: false })}
-                      >
-                        <XIcon />
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
             </div>
 
           </Card>
           </div>
 
-          {/* Sticky action bar */}
-          <div className="sticky bottom-3 z-30 space-y-3">
-            {error && <Alert kind="error">{error}</Alert>}
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-xl shadow-slate-900/10 backdrop-blur-lg dark:border-slate-700 dark:bg-slate-900/90">
-              {stage === 'masking' ? (
-                <div className="flex-1">
-                  <ProgressBar pct={progressPct} pulse={progress.phase !== 'mask'} label={progressLabel} />
-                </div>
-              ) : (
-                <>
-                  <Tooltip content={t('maskButtonHint')} align="start">
-                    <button type="button" className={btnPrimary} disabled={selected.length === 0 || describing || badPrefix.length > 0} onClick={mask}>
-                      <ShieldIcon /> {t('maskButton')}
-                    </button>
-                  </Tooltip>
-                  {badPrefix.length > 0 ? (
-                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                      {t('badPrefixBlock', { columns: badPrefix.map((c) => c.header || c.key).join(', ') })}
-                    </span>
-                  ) : (
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      {selected.length ? t('selectedCount', { n: selected.length }) : t('noneSelected')}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+          {stage !== 'done' && (
+            <SelectionBar
+              selected={selected}
+              configs={configs}
+              multiSheet={info.sheets.length > 1}
+              badPrefix={badPrefix}
+              masking={masking}
+              disabled={describing}
+              progress={{ pct: progressPct, label: progressLabel, pulse: progress.phase !== 'mask' }}
+              error={error}
+              onMask={mask}
+              onOpenColumn={(c) => {
+                setActiveSheet(info.sheets.findIndex((s) => s.name === c.sheet))
+                setActiveKey(c.key)
+              }}
+              onRemove={(c) => update(c.key, { enabled: false })}
+            />
+          )}
         </>
       )}
 
