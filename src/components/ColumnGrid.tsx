@@ -109,7 +109,7 @@ export function ColumnGrid({
   return (
     <div data-column-grid className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
       {/* Sheet tabs on top, each with the number of columns picked in it */}
-      <div role="tablist" className="flex items-end gap-1 overflow-x-auto border-b border-slate-200 bg-slate-100 px-2 pt-1.5 dark:border-slate-800 dark:bg-slate-900">
+      <div role="tablist" className="flex items-end gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-200 bg-slate-100 px-2 pt-1.5 dark:border-slate-800 dark:bg-slate-900">
         {sheets.map((s, i) => {
           const off = skipSheets.has(s.name)
           const n = counts[s.name] ?? 0
@@ -120,7 +120,7 @@ export function ColumnGrid({
               className={cx(
                 'flex shrink-0 items-center rounded-t-lg border border-b-0 transition',
                 current
-                  ? '-mb-px border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950'
+                  ? 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950'
                   : 'border-transparent hover:bg-white/70 dark:hover:bg-slate-800',
               )}
             >
@@ -153,7 +153,7 @@ export function ColumnGrid({
                   aria-label={t('selectedCount', { n })}
                   className={cx(
                     'rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums',
-                    n > 0
+                    n > 0 && !off
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                       : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
                   )}

@@ -21,7 +21,7 @@ export const vi = {
 
   // Dropzone
   dropTitle: 'Kéo thả file vào đây hoặc bấm để chọn',
-  dropHint: 'Hỗ trợ .xlsx, .xlsm, .xls, .ods, .csv',
+  dropHint: 'Hỗ trợ .xlsx, .xlsm, .xls, .ods, .csv · file không rời khỏi máy bạn',
   dropMappingTitle: 'Chọn file mapping (.json)',
   dropMappingHint: 'File _mapping_PRIVATE.json bạn đã tải về khi che dữ liệu',
   dropResultTitle: 'Chọn file kết quả từ AI',
@@ -154,6 +154,8 @@ export const vi = {
   unmaskStep1Hint: 'File mapping được tạo ở bước "Che dữ liệu". Nó chỉ được đọc trong trình duyệt.',
   mappingLoaded: '{file} · {codes} giá trị · tạo lúc {date}',
   mappingFromSession: 'dùng mapping vừa tạo',
+  mappingFromOldRun:
+    'Mapping này của lần che trước. Nếu bạn đã che lại, hãy bấm "Khôi phục câu trả lời" ở bước Tải về để dùng mapping mới.',
   convertToolsOpen: 'Công cụ quy đổi số tiền/ngày',
   resultSource: 'Kết quả từ AI',
   resultSourceHint: 'AI thường trả lời bằng văn bản: hãy dán vào ô. Nếu AI trả về file Excel/CSV, chọn "Tải file".',

@@ -21,7 +21,7 @@ export const en: Dict = {
   tabUnmask: 'Restore',
 
   dropTitle: 'Drop a file here or click to choose',
-  dropHint: 'Supports .xlsx, .xlsm, .xls, .ods, .csv',
+  dropHint: 'Supports .xlsx, .xlsm, .xls, .ods, .csv · your file never leaves your device',
   dropMappingTitle: 'Choose the mapping file (.json)',
   dropMappingHint: 'The _mapping_PRIVATE.json you downloaded when masking',
   dropResultTitle: 'Choose the result file from the AI',
@@ -148,6 +148,8 @@ export const en: Dict = {
   unmaskStep1Hint: 'The mapping file was created in the "Mask" step. It is only read inside your browser.',
   mappingLoaded: '{file} · {codes} values · created {date}',
   mappingFromSession: 'using the mapping you just made',
+  mappingFromOldRun:
+    'This mapping is from an earlier mask run. If you masked again, click "Restore the answer" in the Download step to use the new mapping.',
   convertToolsOpen: 'Amount and date converter',
   resultSource: 'Result from the AI',
   resultSourceHint: 'AIs usually answer in text: paste it. If the AI returned an Excel/CSV file, choose "Upload file".',

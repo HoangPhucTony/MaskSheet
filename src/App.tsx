@@ -51,6 +51,9 @@ export function App() {
   const [hasFile, setHasFile] = useState(false)
   const [handoff, setHandoff] = useState<RestoreHandoff | null>(null)
   const idRef = useRef(0)
+  /** Run id of the mask result MaskPanel holds right now (null: none). */
+  const [currentRun, setCurrentRun] = useState<number | null>(null)
+  const introShown = tab === 'unmask' || !hasFile
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip">
@@ -89,7 +92,8 @@ export function App() {
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16">
-        {(tab === 'unmask' || !hasFile) && (
+        {!introShown && <h1 className="sr-only">{t('heroTitle')}</h1>}
+        {introShown && (
           <section className="pt-6 pb-5 text-center">
             <h1 className="mx-auto max-w-3xl text-2xl leading-tight font-extrabold tracking-tight text-balance sm:text-3xl">
               <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-300 dark:to-sky-400">
@@ -97,8 +101,8 @@ export function App() {
               </span>
             </h1>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Badge icon={<ShieldIcon />} label={t('badgeLocal')} hint={t('badgeLocalHint')} />
-              <Badge icon={<CloudOffIcon />} label={t('badgeNoUpload')} hint={t('badgeNoUploadHint')} />
+              <Badge icon={<ShieldIcon />} label={t('badgeLocal')} hint={t('badgeLocalHint')} side="bottom" />
+              <Badge icon={<CloudOffIcon />} label={t('badgeNoUpload')} hint={t('badgeNoUploadHint')} side="bottom" />
               <Badge icon={<SparkIcon />} label={t('howItWorks')} hint={t('howItWorksHint')} side="bottom" />
             </div>
           </section>
@@ -114,10 +118,7 @@ export function App() {
                 key={id}
                 role="tab"
                 aria-selected={tab === id}
-                onClick={() => {
-                  setTab(id)
-                  window.scrollTo({ top: 0 })
-                }}
+                onClick={() => setTab(id)}
                 className={cx(
                   'inline-flex items-center justify-center gap-2 rounded-xl px-7 py-2.5 text-sm font-semibold transition',
                   tab === id
@@ -136,6 +137,7 @@ export function App() {
         <div hidden={tab !== 'mask'}>
           <MaskPanel
             onHasFileChange={setHasFile}
+            onOutputChange={setCurrentRun}
             onRestore={(h) => {
               setHandoff({ ...h, id: ++idRef.current })
               setTab('unmask')
@@ -144,7 +146,7 @@ export function App() {
           />
         </div>
         <div hidden={tab !== 'unmask'}>
-          <UnmaskPanel handoff={handoff} />
+          <UnmaskPanel handoff={handoff} handoffStale={!!handoff && handoff.runId !== currentRun} />
         </div>
       </main>
 

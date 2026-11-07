@@ -27,11 +27,13 @@ type Result =
 
 export interface RestoreHandoff {
   id: number
+  /** Mask run the mapping came from; compared with the run MaskPanel holds now. */
+  runId: number
   json: string
   fileName: string
 }
 
-export function UnmaskPanel({ handoff }: { handoff?: RestoreHandoff | null }) {
+export function UnmaskPanel({ handoff, handoffStale = false }: { handoff?: RestoreHandoff | null; handoffStale?: boolean }) {
   const { t, lang } = useI18n()
   const [mapping, setMapping] = useState<LoadedMapping | null>(null)
   const [mappingError, setMappingError] = useState<string | null>(null)
@@ -147,7 +149,12 @@ export function UnmaskPanel({ handoff }: { handoff?: RestoreHandoff | null }) {
   const hasConvert = factor !== null || offsetDays !== null
   const noMoneyWarn = result?.kind === 'file' && !!mapping?.data.money && result.stats.divided === 0
   const noDatesWarn = result?.kind === 'file' && !!mapping?.data.dates && result.stats.shifted === 0
-  const showTools = hasConvert && (toolsOpen || result?.kind === 'text' || noMoneyWarn || noDatesWarn)
+  const wantsTools = result?.kind === 'text' || noMoneyWarn || noDatesWarn
+  // Once offered, keep the converter mounted so typed input survives re-runs and edits.
+  useEffect(() => {
+    if (wantsTools) setToolsOpen(true)
+  }, [wantsTools])
+  const showTools = hasConvert && (toolsOpen || wantsTools)
 
   return (
     <div className="space-y-5">
@@ -168,7 +175,7 @@ export function UnmaskPanel({ handoff }: { handoff?: RestoreHandoff | null }) {
                 codes: codeCount.toLocaleString(),
                 date: new Date(mapping.data.createdAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB'),
               })}
-              {fromSession && (
+              {fromSession && !handoffStale && (
                 <span className="text-slate-500 dark:text-slate-400"> · {t('mappingFromSession')}</span>
               )}
             </p>
@@ -196,6 +203,11 @@ export function UnmaskPanel({ handoff }: { handoff?: RestoreHandoff | null }) {
             icon={<KeyIcon />}
             onFile={loadMapping}
           />
+        )}
+        {mapping && fromSession && handoffStale && (
+          <div className="mt-3">
+            <Alert kind="warn">{t('mappingFromOldRun')}</Alert>
+          </div>
         )}
         {mappingError && (
           <div className="mt-3">

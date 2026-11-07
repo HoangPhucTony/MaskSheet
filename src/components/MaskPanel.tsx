@@ -131,9 +131,12 @@ function Stepper({ current }: { current: number }) {
 export function MaskPanel({
   onHasFileChange,
   onRestore,
+  onOutputChange,
 }: {
   onHasFileChange?: (hasFile: boolean) => void
-  onRestore?: (h: { json: string; fileName: string }) => void
+  onRestore?: (h: { json: string; fileName: string; runId: number }) => void
+  /** Id of the mask run whose result is currently held, or null once it is discarded. */
+  onOutputChange?: (runId: number | null) => void
 }) {
   const { t } = useI18n()
   const [stage, setStage] = useState<Stage>('empty')
@@ -166,6 +169,11 @@ export function MaskPanel({
   const [error, setError] = useState<string | null>(null)
   const [output, setOutput] = useState<MaskOutput | null>(null)
   const [downloaded, setDownloaded] = useState({ masked: false, mapping: false })
+  /** Counts finished mask runs; the held output always belongs to the latest one. */
+  const runRef = useRef(0)
+  useEffect(() => {
+    onOutputChange?.(output ? runRef.current : null)
+  }, [output, onOutputChange])
   const stageRef = useRef(stage)
   stageRef.current = stage
   /** Current job: bumped for each loaded file and on reset, so late answers about an old file are dropped. */
@@ -188,6 +196,7 @@ export function MaskPanel({
           setActiveSheet(0)
           setLoadingRows(false)
           setSavingTemplate(false)
+          setSelectMenuOpen(false)
           if (pendingTemplate) {
             applyTemplateTo(pendingTemplate, msg.info)
           } else {
@@ -236,6 +245,7 @@ export function MaskPanel({
           setProgress({ phase: msg.phase ?? 'mask', pct: (msg.done / Math.max(1, msg.total)) * 100 })
           break
         case 'masked':
+          runRef.current++
           setOutput(msg)
           setDownloaded({ masked: false, mapping: false })
           setStage('done')
@@ -484,6 +494,7 @@ export function MaskPanel({
     setProgress({ phase: 'mask', pct: 0 })
     setStage('masking')
     setSavingTemplate(false)
+    setSelectMenuOpen(false)
     // Columns of left-out sheets are not masked (and get no dictionary).
     send({
       type: 'mask',
@@ -510,6 +521,7 @@ export function MaskPanel({
     setTemplateNote(null)
     setSuggestedTemplate(null)
     setSavingTemplate(false)
+    setSelectMenuOpen(false)
   }
 
   const liveKeys = new Set(info?.sheets.filter((s) => !skipSheets.has(s.name)).flatMap((s) => s.keys))
@@ -643,7 +655,7 @@ export function MaskPanel({
                   <button
                     type="button"
                     data-select-menu
-                    aria-haspopup="menu"
+                    aria-haspopup="dialog"
                     aria-expanded={selectMenuOpen}
                     className={btnGhost}
                     onClick={() => setSelectMenuOpen((v) => !v)}
@@ -753,7 +765,7 @@ export function MaskPanel({
         </Popover>
       )}
 
-      {info && selectMenuOpen && stage !== 'empty' && stage !== 'loading' && (
+      {info && selectMenuOpen && !masking && stage !== 'empty' && stage !== 'loading' && (
         <Popover
           anchorKey="select-menu"
           anchor={() => document.querySelector<HTMLElement>('[data-select-menu]')}
@@ -806,7 +818,8 @@ export function MaskPanel({
 
       {/* Step 3: download */}
       {stage === 'done' && output && (
-        <div ref={resultRef} className="scroll-mt-24">
+        <div ref={resultRef} className="scroll-mt-24 space-y-4">
+          {error && <Alert kind="error">{error}</Alert>}
           <ResultCard
             output={output}
             base={base}
@@ -823,7 +836,7 @@ export function MaskPanel({
             warningText={warningText}
             onFixWarning={fixWarning}
             onEdit={() => document.querySelector('[data-column-grid]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-            onRestore={() => onRestore?.({ json: new TextDecoder().decode(output.mapping), fileName: `${base}_mapping_PRIVATE.json` })}
+            onRestore={() => onRestore?.({ json: new TextDecoder().decode(output.mapping), fileName: `${base}_mapping_PRIVATE.json`, runId: runRef.current })}
             onMaskAgain={reset}
           />
         </div>
