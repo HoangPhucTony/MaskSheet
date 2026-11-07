@@ -185,6 +185,7 @@ export const vi = {
   templateTitle: 'Template (không bắt buộc)',
   templateHint:
     'Template ghi nhớ các cột cần che, cách che và các sheet cần xử lý. Chọn template trước rồi tải file lên: các cột trùng tên được chọn sẵn. Template chỉ chứa tên cột, không chứa dữ liệu.',
+  templateMenu: 'Dùng template',
   templateUpload: 'Tải template (.json)',
   templateActive: 'Sẽ áp dụng «{name}» cho file bạn tải lên',
   templateClear: 'Bỏ template',

@@ -179,6 +179,7 @@ export const en: Dict = {
   templateTitle: 'Template (optional)',
   templateHint:
     'A template remembers which columns to mask, how, and which sheets to process. Pick a template, then load your file: columns with the same header are selected for you. Templates hold column names only, never data.',
+  templateMenu: 'Use a template',
   templateUpload: 'Load template (.json)',
   templateActive: '"{name}" will be applied to the file you load',
   templateClear: 'Clear template',

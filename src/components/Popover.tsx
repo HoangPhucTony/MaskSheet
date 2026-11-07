@@ -16,10 +16,10 @@ interface Placement {
   maxHeight: number
 }
 
-function place(anchor: DOMRect): Placement {
+function place(anchor: DOMRect, width: number): Placement {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const left = Math.min(Math.max(anchor.left + anchor.width / 2 - WIDTH / 2, MARGIN), vw - WIDTH - MARGIN)
+  const left = Math.min(Math.max(anchor.left + anchor.width / 2 - width / 2, MARGIN), vw - width - MARGIN)
   const below = vh - anchor.bottom - GAP - MARGIN
   const above = anchor.top - GAP - MARGIN
   // Prefer below the header; go above only when there is clearly more room there.
@@ -41,6 +41,7 @@ export function Popover({
   onClose,
   ignoreOutside,
   label,
+  width,
   children,
 }: {
   /** Changes whenever the panel should re-attach to a different element. */
@@ -49,6 +50,8 @@ export function Popover({
   onClose: () => void
   ignoreOutside?: (target: Element) => boolean
   label: string
+  /** Panel width in px on desktop; defaults to 460. */
+  width?: number
   children: ReactNode
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -56,12 +59,15 @@ export function Popover({
   const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE).matches)
   const handlers = useRef({ anchor, onClose, ignoreOutside })
   handlers.current = { anchor, onClose, ignoreOutside }
+  const panelWidth = width ?? WIDTH
+  const widthRef = useRef(panelWidth)
+  widthRef.current = panelWidth
 
   useLayoutEffect(() => {
     const update = () => {
       setMobile(window.matchMedia(MOBILE).matches)
       const el = handlers.current.anchor()
-      setPos(el ? place(el.getBoundingClientRect()) : null)
+      setPos(el ? place(el.getBoundingClientRect(), widthRef.current) : null)
     }
     // If the anchor is hidden (under the sticky page header or off screen), bring it into view first.
     const el = handlers.current.anchor()
@@ -116,8 +122,8 @@ export function Popover({
       aria-label={label}
       style={
         pos
-          ? { top: pos.top, bottom: pos.bottom, left: pos.left, width: WIDTH, maxHeight: pos.maxHeight }
-          : { top: '50%', left: '50%', width: WIDTH, maxHeight: '80vh', transform: 'translate(-50%, -50%)' }
+          ? { top: pos.top, bottom: pos.bottom, left: pos.left, width: panelWidth, maxHeight: pos.maxHeight }
+          : { top: '50%', left: '50%', width: panelWidth, maxHeight: '80vh', transform: 'translate(-50%, -50%)' }
       }
       className={cx(
         'fixed z-50 overflow-x-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-black/5',

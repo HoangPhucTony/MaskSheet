@@ -542,7 +542,7 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
         <Card>
           <div className="space-y-4">
             <FileDropzone accept={SHEET_ACCEPT} title={t('dropTitle')} hint={t('dropHint')} onFile={onFile} disabled={stage === 'loading'} />
-            <div className="flex justify-center">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950"
@@ -551,15 +551,15 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
               >
                 <SparkIcon /> {t('trySample')}
               </button>
+              <TemplatePicker
+                templates={templates}
+                active={pendingTemplate}
+                disabled={stage === 'loading'}
+                onPick={setPendingTemplate}
+                onFile={(f) => void onTemplateFile(f)}
+                onDelete={deleteTemplate}
+              />
             </div>
-            <TemplatePicker
-              templates={templates}
-              active={pendingTemplate}
-              disabled={stage === 'loading'}
-              onPick={setPendingTemplate}
-              onFile={(f) => void onTemplateFile(f)}
-              onDelete={deleteTemplate}
-            />
             {stage === 'loading' && (
               <ProgressBar
                 pct={30}
