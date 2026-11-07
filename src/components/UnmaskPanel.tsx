@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useI18n } from '../i18n'
 import { restoredName } from '../lib/fileName'
 import { parseMapping, type MappingFile } from '../lib/mapping'
@@ -25,7 +25,13 @@ type Result =
   | { kind: 'text'; text: string; stats: UnmaskStats }
   | { kind: 'file'; buffer: ArrayBuffer; format: 'xlsx' | 'csv'; fileName: string; stats: UnmaskStats }
 
-export function UnmaskPanel() {
+export interface RestoreHandoff {
+  id: number
+  json: string
+  fileName: string
+}
+
+export function UnmaskPanel({ handoff }: { handoff?: RestoreHandoff | null }) {
   const { t, lang } = useI18n()
   const [mapping, setMapping] = useState<LoadedMapping | null>(null)
   const [mappingError, setMappingError] = useState<string | null>(null)
@@ -37,6 +43,26 @@ export function UnmaskPanel() {
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [fromSession, setFromSession] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
+
+  // A new handoff id reloads the mapping even when the JSON is identical.
+  useEffect(() => {
+    if (!handoff) return
+    setMappingError(null)
+    setResult(null)
+    setError(null)
+    setToolsOpen(false)
+    try {
+      setMapping({ fileName: handoff.fileName, json: handoff.json, data: parseMapping(handoff.json) })
+      setFromSession(true)
+    } catch {
+      setMapping(null)
+      setFromSession(false)
+      setMappingError(t('err_mapping'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff?.id])
 
   const post = useWorker<UnmaskRequest, UnmaskResponse>(
     () => new Worker(new URL('../workers/unmask.worker.ts', import.meta.url), { type: 'module' }),
@@ -68,6 +94,8 @@ export function UnmaskPanel() {
   const loadMapping = async (file: File) => {
     setMappingError(null)
     setResult(null)
+    setFromSession(false)
+    setToolsOpen(false)
     try {
       const json = await file.text()
       setMapping({ fileName: file.name, json, data: parseMapping(json) })
@@ -116,6 +144,10 @@ export function UnmaskPanel() {
   const codeCount = mapping ? Object.values(mapping.data.dictionaries).reduce((n, d) => n + d.entries.length, 0) : 0
   const factor = mapping?.data.money?.factor ?? null
   const offsetDays = mapping?.data.dates?.offsetDays ?? null
+  const hasConvert = factor !== null || offsetDays !== null
+  const noMoneyWarn = result?.kind === 'file' && !!mapping?.data.money && result.stats.divided === 0
+  const noDatesWarn = result?.kind === 'file' && !!mapping?.data.dates && result.stats.shifted === 0
+  const showTools = hasConvert && (toolsOpen || result?.kind === 'text' || noMoneyWarn || noDatesWarn)
 
   return (
     <div className="space-y-5">
@@ -136,6 +168,9 @@ export function UnmaskPanel() {
                 codes: codeCount.toLocaleString(),
                 date: new Date(mapping.data.createdAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB'),
               })}
+              {fromSession && (
+                <span className="text-slate-500 dark:text-slate-400"> · {t('mappingFromSession')}</span>
+              )}
             </p>
             <button
               type="button"
@@ -145,6 +180,8 @@ export function UnmaskPanel() {
                 setMapping(null)
                 setResult(null)
                 setError(null)
+                setFromSession(false)
+                setToolsOpen(false)
               }}
             >
               <XIcon />
@@ -233,10 +270,10 @@ export function UnmaskPanel() {
                 {result.stats.divided > 0 && <p>{t('dividedCells', { n: result.stats.divided.toLocaleString() })}</p>}
                 {result.stats.shifted > 0 && <p>{t('shiftedCells', { n: result.stats.shifted.toLocaleString() })}</p>}
               </Alert>
-              {result.kind === 'file' && mapping?.data.money && result.stats.divided === 0 && (
+              {noMoneyWarn && (
                 <Alert kind="warn">{t('restoreNoMoney')}</Alert>
               )}
-              {result.kind === 'file' && mapping?.data.dates && result.stats.shifted === 0 && (
+              {noDatesWarn && (
                 <Alert kind="warn">{t('restoreNoDates')}</Alert>
               )}
               {result.stats.unknown.length > 0 && (
@@ -276,7 +313,16 @@ export function UnmaskPanel() {
         </div>
       </Card>
 
-      {(factor !== null || offsetDays !== null) && <ConvertTools factor={factor} offsetDays={offsetDays} />}
+      {showTools && <ConvertTools factor={factor} offsetDays={offsetDays} />}
+      {hasConvert && !showTools && (
+        <button
+          type="button"
+          className="text-sm font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+          onClick={() => setToolsOpen(true)}
+        >
+          {t('convertToolsOpen')}
+        </button>
+      )}
     </div>
   )
 }

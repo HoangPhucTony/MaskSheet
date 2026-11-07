@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import {
   CloudOffIcon,
   EyeOffIcon,
@@ -13,7 +13,7 @@ import {
 import { MaskPanel } from './components/MaskPanel'
 import { Tooltip } from './components/Tooltip'
 import { btnGhost } from './components/ui'
-import { UnmaskPanel } from './components/UnmaskPanel'
+import { UnmaskPanel, type RestoreHandoff } from './components/UnmaskPanel'
 import { useI18n } from './i18n'
 import { useTheme } from './theme'
 import { cx } from './util'
@@ -49,6 +49,8 @@ export function App() {
   const [theme, toggleTheme] = useTheme()
   const [tab, setTab] = useState<Tab>('mask')
   const [hasFile, setHasFile] = useState(false)
+  const [handoff, setHandoff] = useState<RestoreHandoff | null>(null)
+  const idRef = useRef(0)
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip">
@@ -112,7 +114,10 @@ export function App() {
                 key={id}
                 role="tab"
                 aria-selected={tab === id}
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  setTab(id)
+                  window.scrollTo({ top: 0 })
+                }}
                 className={cx(
                   'inline-flex items-center justify-center gap-2 rounded-xl px-7 py-2.5 text-sm font-semibold transition',
                   tab === id
@@ -129,10 +134,17 @@ export function App() {
 
         {/* Both panels stay mounted so switching tabs keeps their state. */}
         <div hidden={tab !== 'mask'}>
-          <MaskPanel onHasFileChange={setHasFile} />
+          <MaskPanel
+            onHasFileChange={setHasFile}
+            onRestore={(h) => {
+              setHandoff({ ...h, id: ++idRef.current })
+              setTab('unmask')
+              window.scrollTo({ top: 0 })
+            }}
+          />
         </div>
         <div hidden={tab !== 'unmask'}>
-          <UnmaskPanel />
+          <UnmaskPanel handoff={handoff} />
         </div>
       </main>
 

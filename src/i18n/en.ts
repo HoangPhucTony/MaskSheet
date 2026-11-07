@@ -161,6 +161,8 @@ export const en: Dict = {
   unmaskIntro: "Paste the AI's answer or upload its result file. Every code (NAME_0001…) and fake value is replaced with the real value.",
   unmaskStep1Hint: 'The mapping file was created in the "Mask" step. It is only read inside your browser.',
   mappingLoaded: '{file} · {codes} values · created {date}',
+  mappingFromSession: 'using the mapping you just made',
+  convertToolsOpen: 'Amount and date converter',
   resultSource: 'Result from the AI',
   resultSourceHint: 'AIs usually answer in text: paste it. If the AI returned an Excel/CSV file, choose "Upload file".',
   sourceText: 'Paste text',

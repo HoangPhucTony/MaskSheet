@@ -167,6 +167,8 @@ export const vi = {
   unmaskIntro: 'Dán câu trả lời của AI hoặc tải file kết quả. Mọi mã (NAME_0001…) và dữ liệu giả sẽ được thay về giá trị thật.',
   unmaskStep1Hint: 'File mapping được tạo ở bước "Che dữ liệu". Nó chỉ được đọc trong trình duyệt.',
   mappingLoaded: '{file} · {codes} giá trị · tạo lúc {date}',
+  mappingFromSession: 'dùng mapping vừa tạo',
+  convertToolsOpen: 'Công cụ quy đổi số tiền/ngày',
   resultSource: 'Kết quả từ AI',
   resultSourceHint: 'AI thường trả lời bằng văn bản: hãy dán vào ô. Nếu AI trả về file Excel/CSV, chọn "Tải file".',
   sourceText: 'Dán văn bản',
