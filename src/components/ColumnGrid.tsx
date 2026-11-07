@@ -320,6 +320,14 @@ export function ColumnGrid({
                 )}
               >
                 {s.name}
+                {s.hidden && (
+                  <span
+                    title={t('sheetHiddenHint')}
+                    className="ml-1.5 rounded bg-amber-100 px-1 py-px text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  >
+                    {t('sheetHidden')}
+                  </span>
+                )}
               </button>
             </span>
           )

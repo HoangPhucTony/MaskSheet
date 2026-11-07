@@ -23,7 +23,7 @@ describe('numbers with a leading zero are identifiers, not amounts', () => {
     const wb = book({ S: [['SĐT'], ['0912345678'], ['0987654321']] })
     const { mapping, warnings } = maskWorkbook(wb, [colIn('S', 0, 'SĐT', 'money')], opts)
     expect(texts(wb).map((r) => r[0])).toEqual(['SĐT', '0912345678', '0987654321'])
-    expect(warnings).toEqual([{ kind: 'skipped', sheet: 'S', header: 'SĐT', count: 2, detail: 'number' }])
+    expect(warnings).toEqual([{ kind: 'skipped', sheet: 'S', header: 'SĐT', column: 'A', count: 2, detail: 'number' }])
     unmaskWorkbook(wb, mapping)
     expect(texts(wb).map((r) => r[0])).toEqual(['SĐT', '0912345678', '0987654321'])
   })

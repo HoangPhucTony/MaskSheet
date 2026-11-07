@@ -6,7 +6,7 @@ import { stringifyMapping } from '../lib/mapping'
 import { maskWorkbook } from '../lib/masker'
 import { columnKey, sheetColumnKey } from '../lib/normalize'
 import { cellText, detectHeaderRow, dropSheets, headerChoices, headersOf, readRows, rowsOf } from '../lib/sheet'
-import { toWorkerError, type ColumnInfo, type MaskRequest, type MaskResponse, type SheetInfo, type WorkbookInfo } from './protocol'
+import { toWorkerError, type ColumnInfo, type MaskReply, type MaskRequest, type SheetInfo, type WorkbookInfo } from './protocol'
 
 declare const self: DedicatedWorkerGlobalScope
 
@@ -25,8 +25,11 @@ interface Sample {
   filled: number
 }
 
-function post(msg: MaskResponse, transfer: Transferable[] = []) {
-  self.postMessage(msg, transfer)
+/** Job of the request being handled; repeated in every answer. */
+let job = 0
+
+function post(msg: MaskReply, transfer: Transferable[] = []) {
+  self.postMessage({ ...msg, job }, transfer)
 }
 
 function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat, headerRows: Record<string, number> = {}): WorkbookInfo {
@@ -49,6 +52,7 @@ function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat, heade
       headerRow: h.headerRow,
       autoHeaderRow: detectHeaderRow(ws),
       headerChoices: headerChoices(ws),
+      hidden: !!wb.Workbook?.Sheets?.[wb.SheetNames.indexOf(name)]?.Hidden,
       firstCol: h.firstCol,
       headers: h.headers,
       keys,
@@ -96,6 +100,7 @@ function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat, heade
 
 self.onmessage = (e: MessageEvent<MaskRequest>) => {
   const msg = e.data
+  job = msg.job
   if (msg.type === 'load') {
     try {
       const { wb, format } = readWorkbook(msg.buffer, msg.fileName)

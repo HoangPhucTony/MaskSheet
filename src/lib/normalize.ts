@@ -72,6 +72,11 @@ export function isValidPrefix(prefix: string): boolean {
   return PREFIX_RE.test(prefix) && !prefix.endsWith('_')
 }
 
+/** A prefix the masker accepts: valid, and not one of the FAKE_ keys used by fake-data dictionaries. */
+export function isUsablePrefix(prefix: string): boolean {
+  return isValidPrefix(prefix) && !prefix.startsWith('FAKE_')
+}
+
 /** Turn arbitrary user input into a valid prefix (best effort). */
 export function sanitizePrefix(input: string): string {
   const s = stripDiacritics(input)

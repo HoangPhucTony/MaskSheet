@@ -87,11 +87,14 @@ export interface MaskWarning {
   /**
    * pii-unmasked: personal data found in a column left as is; skipped: cells the method could
    * not handle; same-header-unmasked: a column left as is although one with the same header
-   * was masked in another sheet.
+   * was masked in another sheet; pii-above-header: personal data in the rows above the header
+   * row, which are never masked.
    */
-  kind: 'pii-unmasked' | 'skipped' | 'same-header-unmasked'
+  kind: 'pii-unmasked' | 'skipped' | 'same-header-unmasked' | 'pii-above-header'
   sheet: string
   header: string
+  /** Column letter, so the app can offer to mask that column. Absent for pii-above-header. */
+  column?: string
   count: number
   /** pii-unmasked: phone | email | id. skipped: number | date. */
   detail?: string

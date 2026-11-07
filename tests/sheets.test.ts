@@ -49,7 +49,7 @@ describe('columns are chosen per sheet', () => {
       Z: [['Khác'], ['x']],
     })
     const { warnings } = maskWorkbook(wb, [colIn('X', 0, 'Họ tên', 'name')], opts)
-    expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'Họ tên', count: 2 }])
+    expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'Họ tên', column: 'A', count: 2 }])
   })
 
   it('gives a single warning for such a column, even if it also looks like personal data', () => {
@@ -58,7 +58,7 @@ describe('columns are chosen per sheet', () => {
       Y: [['SĐT'], ['0987654321']],
     })
     const { warnings } = maskWorkbook(wb, [colIn('X', 0, 'SĐT', 'phone')], opts)
-    expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'SĐT', count: 1 }])
+    expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'SĐT', column: 'A', count: 1 }])
   })
 })
 

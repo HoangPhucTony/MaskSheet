@@ -31,7 +31,7 @@ export const vi = {
 
   // Dropzone
   dropTitle: 'Kéo thả file vào đây hoặc bấm để chọn',
-  dropHint: 'Hỗ trợ .xlsx, .xls, .csv',
+  dropHint: 'Hỗ trợ .xlsx, .xlsm, .xls, .ods, .csv',
   dropMappingTitle: 'Chọn file mapping (.json)',
   dropMappingHint: 'File _mapping_PRIVATE.json bạn đã tải về khi che dữ liệu',
   dropResultTitle: 'Chọn file kết quả từ AI',
@@ -234,6 +234,16 @@ export const vi = {
   err_collision:
     'Dữ liệu gốc đã có chuỗi trông giống mã ({details}). Khi khôi phục sẽ bị thay nhầm — hãy đổi tiền tố mã của cột.',
   err_mapping: 'File mapping không hợp lệ hoặc không phải file do MaskSheet tạo.',
+  err_encrypted: 'File có mật khẩu nên không đọc được. Hãy mở trong Excel, vào File → Info → Protect Workbook → Encrypt with Password, xoá mật khẩu, lưu lại rồi thử lại.',
+  confirmDiscardMapping: 'Bạn chưa tải file mapping. Nếu tiếp tục, kết quả vừa che sẽ bị xoá và sau này không khôi phục được câu trả lời của AI. Vẫn tiếp tục?',
+  badPrefixBlock: 'Tiền tố mã không hợp lệ ở cột: {columns}. Bấm vào cột để sửa.',
+  warnFixColumn: 'Che cột này',
+  warnOpenColumn: 'Xem cột',
+  warnPiiAbove: 'Sheet {sheet}: {count} ô ở các dòng phía trên tiêu đề giống SĐT, email hoặc CCCD. Các dòng này không được che: hãy xoá trước, hoặc chọn dòng tiêu đề cao hơn.',
+  sheetHidden: 'ẩn',
+  sheetHiddenHint: 'Sheet này đang ẩn trong Excel nhưng vẫn có trong file gửi AI nếu còn tick.',
+  restoreNoMoney: 'Không tìm thấy cột số tiền đã nhân hệ số trong file này (có thể AI đã đổi tên cột). Số tiền chưa được đổi lại: hãy dùng công cụ quy đổi bên dưới.',
+  restoreNoDates: 'Không tìm thấy cột ngày đã dịch trong file này (có thể AI đã đổi tên cột). Ngày chưa được đổi lại: hãy dùng công cụ quy đổi bên dưới.',
   err_unknown: 'Có lỗi không mong muốn: {details}',
   err_worker_crashed: 'Bộ xử lý bị dừng đột ngột (thường do hết bộ nhớ). Hãy thử với file nhỏ hơn hoặc CSV.',
   err_wrong_file_json: 'Đây là file .json — có phải file mapping? Hãy tải nó ở ô mapping bên trên.',

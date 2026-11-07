@@ -19,6 +19,8 @@ export interface SheetInfo {
   autoHeaderRow: number
   /** Rows that can be chosen as the header row, with a few of their values. */
   headerChoices: { row: number; label: string }[]
+  /** Hidden in Excel: easy to forget, but sent to the AI unless left out. */
+  hidden: boolean
   /** Index of the first column (0 = A). */
   firstCol: number
   headers: string[]
@@ -59,6 +61,7 @@ export type ErrorCode =
   | 'bad-method'
   | 'collision'
   | 'mapping'
+  | 'encrypted'
   | 'unknown'
 
 export interface WorkerError {
@@ -75,7 +78,8 @@ export interface Progress {
   phase?: 'read' | 'mask' | 'write'
 }
 
-export type MaskRequest =
+/** What the app asks the mask worker; sent with a job id as `MaskRequest`. */
+export type MaskCommand =
   /** `headerRows`: header rows to use instead of the detected ones (e.g. from a template). */
   | { type: 'load'; buffer: ArrayBuffer; fileName: string; headerRows?: Record<string, number> }
   /** Describe the loaded file again with other header rows. */
@@ -84,7 +88,14 @@ export type MaskRequest =
   /** Load more preview rows; `start` counts data rows (0 = first row below the header row). */
   | { type: 'rows'; sheet: string; headerRow: number; start: number; count: number }
 
-export type MaskResponse =
+/**
+ * Every request carries the job it belongs to (a new job per loaded file) and every answer
+ * repeats it, so the app can drop answers about a file it no longer shows.
+ */
+export type MaskRequest = MaskCommand & { job: number }
+
+/** What the mask worker answers; sent with the job id as `MaskResponse`. */
+export type MaskReply =
   | { type: 'loaded'; info: WorkbookInfo }
   | { type: 'described'; info: WorkbookInfo }
   | { type: 'rows'; sheet: string; start: number; rows: string[][] }
@@ -100,6 +111,8 @@ export type MaskResponse =
       maskedCells: number
     }
   | WorkerError
+
+export type MaskResponse = MaskReply & { job: number }
 
 export type UnmaskRequest =
   | { type: 'unmask-file'; buffer: ArrayBuffer; fileName: string; mappingJson: string }
@@ -119,6 +132,8 @@ export function toWorkerError(err: unknown, fallback: ErrorCode = 'unknown'): Wo
   }
   if (e?.name === 'MappingError') return { type: 'error', code: 'mapping', details: [e.message ?? ''] }
   const msg = String(e?.message ?? err)
+  // SheetJS cannot open files saved with a password ("Encrypt with Password" in Excel).
+  if (/password-protected|ECMA-376 Encrypted|ZIP encryption/i.test(msg)) return { type: 'error', code: 'encrypted', details: [] }
   if (e?.name === 'RangeError' || /memory|allocation|invalid array length|invalid string length/i.test(msg)) {
     return { type: 'error', code: 'out-of-memory', details: [msg] }
   }

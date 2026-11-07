@@ -1,8 +1,9 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useI18n, type TKey } from '../i18n'
 import { suggestPrefix } from '../lib/detectType'
 import { methodsFor } from '../lib/fake'
 import { baseName } from '../lib/fileName'
+import { isUsablePrefix } from '../lib/normalize'
 import type { DictionaryStats } from '../lib/masker'
 import {
   applyTemplate,
@@ -17,8 +18,18 @@ import {
 } from '../lib/template'
 import type { ColumnConfig, MaskWarning } from '../lib/types'
 import { useWorker } from '../useWorker'
-import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
-import { PREVIEW_PAGE, type ColumnInfo, type MaskRequest, type MaskResponse, type Progress, type SheetInfo, type WorkbookInfo, type WorkerError } from '../workers/protocol'
+import { confirmBigFile, confirmDiscardMapping, cx, downloadBlob, errorText, formatBytes, MIME, SHEET_ACCEPT } from '../util'
+import {
+  PREVIEW_PAGE,
+  type ColumnInfo,
+  type MaskCommand,
+  type MaskRequest,
+  type MaskResponse,
+  type Progress,
+  type SheetInfo,
+  type WorkbookInfo,
+  type WorkerError,
+} from '../workers/protocol'
 import { ColumnGrid } from './ColumnGrid'
 import { ColumnInspector } from './ColumnInspector'
 import { Popover } from './Popover'
@@ -43,7 +54,6 @@ interface MaskOutput {
   maskedCells: number
 }
 
-const ACCEPT = '.xlsx,.xls,.csv,.tsv,.txt'
 
 /** What applying a template did, shown above the grid. */
 interface TemplateNote extends TemplateResult {
@@ -158,6 +168,8 @@ export function MaskPanel() {
   const [downloaded, setDownloaded] = useState({ masked: false, mapping: false })
   const stageRef = useRef(stage)
   stageRef.current = stage
+  /** Current job: bumped for each loaded file and on reset, so late answers about an old file are dropped. */
+  const jobRef = useRef(0)
   const resultRef = useRef<HTMLDivElement>(null)
 
   const fail = (err: WorkerError, back: Stage) => {
@@ -168,6 +180,7 @@ export function MaskPanel() {
   const post = useWorker<MaskRequest, MaskResponse>(
     () => new Worker(new URL('../workers/mask.worker.ts', import.meta.url), { type: 'module' }),
     (msg) => {
+      if (msg.job !== jobRef.current) return
       switch (msg.type) {
         case 'loaded': {
           setInfo(msg.info)
@@ -246,15 +259,19 @@ export function MaskPanel() {
     },
   )
 
+  const send = (cmd: MaskCommand, transfer?: Transferable[]) => post({ ...cmd, job: jobRef.current }, transfer)
+
   const load = async (name: string, size: number, getBuffer: () => Promise<ArrayBuffer>) => {
+    const job = ++jobRef.current
     setError(null)
     setOutput(null)
     setFile({ name, size })
     setStage('loading')
     try {
       const buffer = await getBuffer()
+      if (job !== jobRef.current) return
       setFile({ name, size: buffer.byteLength })
-      post({ type: 'load', buffer, fileName: name, headerRows: pendingTemplate?.headerRows }, [buffer])
+      send({ type: 'load', buffer, fileName: name, headerRows: pendingTemplate?.headerRows }, [buffer])
     } catch (err) {
       setError(errorText(t, { code: 'read-failed', details: [String(err)] }))
       setStage('empty')
@@ -287,13 +304,30 @@ export function MaskPanel() {
       return res.arrayBuffer()
     })
 
-  const invalidateOutput = () => {
+  /** The mapping of the last run would be lost: it exists and was never downloaded. */
+  const mappingAtRisk = !!output && !downloaded.mapping
+
+  /**
+   * Drop the last result before a change that makes it stale. Returns false, and changes
+   * nothing, if the user prefers to keep a mapping they have not downloaded yet.
+   */
+  const invalidateOutput = (): boolean => {
+    if (mappingAtRisk && !confirmDiscardMapping(t)) return false
     setOutput(null)
     if (stage === 'done') setStage('ready')
+    return true
   }
 
-  const update = (key: string, patch: Partial<ColumnConfig>) => {
-    invalidateOutput()
+  // Closing or reloading the tab would lose it too.
+  useEffect(() => {
+    if (!mappingAtRisk) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [mappingAtRisk])
+
+  const update = (key: string, patch: Partial<ColumnConfig>): boolean => {
+    if (!invalidateOutput()) return false
     if (patch.prefix !== undefined) setTouchedPrefix((s) => new Set(s).add(key))
     setConfigs((prev) => {
       const cur = prev[key]
@@ -304,36 +338,36 @@ export function MaskPanel() {
       }
       return { ...prev, [key]: next }
     })
+    return true
   }
 
   /** Read a sheet again with another header row. Its columns start over. */
   const changeHeaderRow = (sheet: string, row: number) => {
-    if (!info) return
-    invalidateOutput()
+    if (!info || !invalidateOutput()) return
     setDescribing(true)
     setActiveKey(null)
-    post({ type: 'describe', headerRows: { ...headerRowsOf(info), [sheet]: row } })
+    send({ type: 'describe', headerRows: { ...headerRowsOf(info), [sheet]: row } })
   }
 
   const loadMoreRows = (sheet: SheetInfo) => {
     setLoadingRows(true)
-    post({ type: 'rows', sheet: sheet.name, headerRow: sheet.headerRow, start: sheet.preview.length - 1, count: PREVIEW_PAGE })
+    send({ type: 'rows', sheet: sheet.name, headerRow: sheet.headerRow, start: sheet.preview.length - 1, count: PREVIEW_PAGE })
   }
 
   /** Click on a column: select it and open its settings popup (click again to close). */
   const open = (key: string) => {
-    if (!configs[key].enabled) update(key, { enabled: true })
+    if (!configs[key].enabled && !update(key, { enabled: true })) return
     setActiveKey((cur) => (cur === key ? null : key))
   }
 
   /** Header checkbox: switch a column on/off without opening the popup. */
   const toggle = (key: string) => {
-    update(key, { enabled: !configs[key].enabled })
+    if (!update(key, { enabled: !configs[key].enabled })) return
     if (activeKey === key) setActiveKey(null)
   }
 
   const setEnabled = (isOn: (key: string) => boolean) => {
-    invalidateOutput()
+    if (!invalidateOutput()) return
     setConfigs((prev) => Object.fromEntries(Object.entries(prev).map(([k, c]) => [k, { ...c, enabled: isOn(k) }])))
   }
 
@@ -348,7 +382,7 @@ export function MaskPanel() {
   }
 
   const applyToTwins = (column: ColumnInfo) => {
-    invalidateOutput()
+    if (!invalidateOutput()) return
     const twins = unsyncedTwins(column).map((c) => c.key)
     const { enabled, type, method, prefix } = configs[column.key]
     setTouchedPrefix((s) => new Set([...s, ...twins]))
@@ -363,13 +397,12 @@ export function MaskPanel() {
 
   /** Apply a template the app suggested for the loaded file, first switching to its header rows if needed. */
   const applySuggested = (template: Template) => {
-    if (!info) return
-    invalidateOutput()
+    if (!info || !invalidateOutput()) return
     const wanted = template.headerRows ?? {}
     if (info.sheets.some((s) => wanted[s.name] !== undefined && wanted[s.name] !== s.headerRow)) {
       afterDescribe.current = template
       setDescribing(true)
-      post({ type: 'describe', headerRows: { ...headerRowsOf(info), ...wanted } })
+      send({ type: 'describe', headerRows: { ...headerRowsOf(info), ...wanted } })
     } else {
       applyTemplateTo(template, info)
     }
@@ -388,12 +421,35 @@ export function MaskPanel() {
   }
 
   const toggleSheet = (name: string) => {
-    invalidateOutput()
+    if (!invalidateOutput()) return
     setSkipSheets((prev) => {
       const next = new Set(prev)
       if (!next.delete(name)) next.add(name)
       return next
     })
+  }
+
+  /** Show the column a warning is about, switching it on when it was left unmasked. */
+  const fixWarning = (w: MaskWarning) => {
+    const key = `${w.column}@${w.sheet}`
+    if (!info || !configs[key]) return
+    if (!configs[key].enabled && !update(key, { enabled: true })) return
+    setActiveSheet(info.sheets.findIndex((s) => s.name === w.sheet))
+    setActiveKey(key)
+  }
+
+  const warningText = (w: MaskWarning): string => {
+    const vars = { header: w.header, sheet: w.sheet, count: w.count }
+    switch (w.kind) {
+      case 'pii-unmasked':
+        return t('warnPii', { ...vars, detail: t(`detail_${w.detail}` as TKey) })
+      case 'same-header-unmasked':
+        return t('warnSameHeader', vars)
+      case 'pii-above-header':
+        return t('warnPiiAbove', vars)
+      case 'skipped':
+        return t(`warnSkipped_${w.detail}` as TKey, vars)
+    }
   }
 
   const currentTemplate = (name: string) =>
@@ -421,12 +477,15 @@ export function MaskPanel() {
   }
 
   const mask = () => {
+    if (stageRef.current === 'masking' || badPrefix.length) return
+    stageRef.current = 'masking'
+    setActiveKey(null)
     setError(null)
     setProgress({ phase: 'mask', pct: 0 })
     setStage('masking')
     setSavingTemplate(false)
     // Columns of left-out sheets are not masked (and get no dictionary).
-    post({
+    send({
       type: 'mask',
       configs: Object.values(configs).map((c) => (liveKeys.has(c.key) ? c : { ...c, enabled: false })),
       skipSheets: [...skipSheets],
@@ -435,6 +494,8 @@ export function MaskPanel() {
   }
 
   const reset = () => {
+    if (mappingAtRisk && !confirmDiscardMapping(t)) return
+    jobRef.current++
     setStage('empty')
     setInfo(null)
     setFile(null)
@@ -453,6 +514,9 @@ export function MaskPanel() {
 
   const liveKeys = new Set(info?.sheets.filter((s) => !skipSheets.has(s.name)).flatMap((s) => s.keys))
   const selected = info ? info.columns.filter((c) => configs[c.key]?.enabled && liveKeys.has(c.key)) : []
+  /** Selected code columns whose prefix the masker would refuse; caught before masking. */
+  const badPrefix = selected.filter((c) => configs[c.key].method === 'code' && !isUsablePrefix(configs[c.key].prefix))
+  const masking = stage === 'masking'
   const totalRows = info?.sheets.filter((s) => !skipSheets.has(s.name)).reduce((n, s) => n + s.rowCount, 0) ?? 0
   const base = info ? baseName(info.fileName) : ''
   const activeColumn = info?.columns.find((c) => c.key === activeKey) ?? null
@@ -473,7 +537,7 @@ export function MaskPanel() {
       {(stage === 'empty' || stage === 'loading' || !info) && (
         <Card>
           <div className="space-y-4">
-            <FileDropzone accept={ACCEPT} title={t('dropTitle')} hint={t('dropHint')} onFile={onFile} disabled={stage === 'loading'} />
+            <FileDropzone accept={SHEET_ACCEPT} title={t('dropTitle')} hint={t('dropHint')} onFile={onFile} disabled={stage === 'loading'} />
             <div className="flex justify-center">
               <button
                 type="button"
@@ -507,6 +571,8 @@ export function MaskPanel() {
       {/* Step 2: pick columns on the spreadsheet */}
       {info && stage !== 'empty' && stage !== 'loading' && (
         <>
+          {/* Nothing can change while a mask run is in progress, or its result would not match the settings. */}
+          <div inert={masking} className={cx('transition-opacity', masking && 'opacity-60')}>
           <Card className="!p-0">
             {/* File bar */}
             <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-6 dark:border-slate-800">
@@ -651,6 +717,7 @@ export function MaskPanel() {
                         active
                           ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
                           : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
+                        badPrefix.includes(c) && 'ring-2 ring-red-500',
                       )}
                     >
                       <button
@@ -682,6 +749,7 @@ export function MaskPanel() {
             </div>
 
           </Card>
+          </div>
 
           {/* Sticky action bar */}
           <div className="sticky bottom-3 z-30 space-y-3">
@@ -694,13 +762,19 @@ export function MaskPanel() {
               ) : (
                 <>
                   <Tooltip content={t('maskButtonHint')} align="start">
-                    <button type="button" className={btnPrimary} disabled={selected.length === 0 || describing} onClick={mask}>
+                    <button type="button" className={btnPrimary} disabled={selected.length === 0 || describing || badPrefix.length > 0} onClick={mask}>
                       <ShieldIcon /> {t('maskButton')}
                     </button>
                   </Tooltip>
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {selected.length ? t('selectedCount', { n: selected.length }) : t('noneSelected')}
-                  </span>
+                  {badPrefix.length > 0 ? (
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                      {t('badPrefixBlock', { columns: badPrefix.map((c) => c.header || c.key).join(', ') })}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {selected.length ? t('selectedCount', { n: selected.length }) : t('noneSelected')}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -805,11 +879,17 @@ export function MaskPanel() {
                   <ul className="list-disc space-y-0.5 pl-4">
                     {output.warnings.map((w, i) => (
                       <li key={i}>
-                        {w.kind === 'pii-unmasked'
-                          ? t('warnPii', { header: w.header, sheet: w.sheet, count: w.count, detail: t(`detail_${w.detail}` as TKey) })
-                          : w.kind === 'same-header-unmasked'
-                            ? t('warnSameHeader', { header: w.header, sheet: w.sheet, count: w.count })
-                            : t(`warnSkipped_${w.detail}` as TKey, { header: w.header, sheet: w.sheet, count: w.count })}
+                        {warningText(w)}
+                        {w.column && (
+                          <button
+                            type="button"
+                            data-column-chip
+                            className="ml-2 rounded-md bg-amber-600 px-2 py-0.5 text-[11px] font-semibold text-white transition hover:bg-amber-700"
+                            onClick={() => fixWarning(w)}
+                          >
+                            {w.kind === 'skipped' ? t('warnOpenColumn') : t('warnFixColumn')}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>

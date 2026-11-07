@@ -31,10 +31,18 @@ export function errorText(t: T, err: Pick<WorkerError, 'code' | 'details'>): str
   return t(key, { details: err.details.join(', ') })
 }
 
+/** Ask before throwing away a mapping file that was never downloaded. */
+export function confirmDiscardMapping(t: T): boolean {
+  return window.confirm(t('confirmDiscardMapping'))
+}
+
 /** Ask before processing very large files. */
 export function confirmBigFile(t: T, file: File): boolean {
   return file.size <= BIG_FILE_BYTES || window.confirm(t('bigFileWarning', { size: formatBytes(file.size) }))
 }
+
+/** File types the app reads. Output is .xlsx, or .csv for text input. */
+export const SHEET_ACCEPT = '.xlsx,.xlsm,.xlsb,.xls,.ods,.csv,.tsv,.txt'
 
 export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ')

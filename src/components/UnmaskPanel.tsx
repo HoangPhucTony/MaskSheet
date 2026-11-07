@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useI18n } from '../i18n'
-import { baseName } from '../lib/fileName'
+import { restoredName } from '../lib/fileName'
 import { parseMapping, type MappingFile } from '../lib/mapping'
 import { parseTextDate, shiftTextDate } from '../lib/dates'
 import { divideBack, parseNumber } from '../lib/money'
 import type { UnmaskStats } from '../lib/unmasker'
 import { useWorker } from '../useWorker'
-import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME } from '../util'
+import { confirmBigFile, cx, downloadBlob, errorText, formatBytes, MIME, SHEET_ACCEPT } from '../util'
 import type { UnmaskRequest, UnmaskResponse } from '../workers/protocol'
 import { FileDropzone } from './FileDropzone'
 import { CopyIcon, DownloadIcon, FileIcon, KeyIcon, XIcon } from './icons'
@@ -137,7 +137,16 @@ export function UnmaskPanel() {
                 date: new Date(mapping.data.createdAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-GB'),
               })}
             </p>
-            <button type="button" className={btnGhost} aria-label="Remove" onClick={() => setMapping(null)}>
+            <button
+              type="button"
+              className={btnGhost}
+              aria-label="Remove"
+              onClick={() => {
+                setMapping(null)
+                setResult(null)
+                setError(null)
+              }}
+            >
               <XIcon />
             </button>
           </div>
@@ -189,7 +198,11 @@ export function UnmaskPanel() {
           <div className="space-y-3">
             <textarea
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value)
+                // The restored text no longer matches what is in the box.
+                if (result?.kind === 'text') setResult(null)
+              }}
               placeholder={t('textPlaceholder')}
               rows={8}
               disabled={!mapping}
@@ -202,7 +215,7 @@ export function UnmaskPanel() {
         ) : (
           <FileDropzone
             compact
-            accept=".xlsx,.xls,.csv,.tsv,.txt"
+            accept={SHEET_ACCEPT}
             title={t('dropResultTitle')}
             hint={t('dropHint')}
             icon={<FileIcon />}
@@ -220,6 +233,12 @@ export function UnmaskPanel() {
                 {result.stats.divided > 0 && <p>{t('dividedCells', { n: result.stats.divided.toLocaleString() })}</p>}
                 {result.stats.shifted > 0 && <p>{t('shiftedCells', { n: result.stats.shifted.toLocaleString() })}</p>}
               </Alert>
+              {result.kind === 'file' && mapping?.data.money && result.stats.divided === 0 && (
+                <Alert kind="warn">{t('restoreNoMoney')}</Alert>
+              )}
+              {result.kind === 'file' && mapping?.data.dates && result.stats.shifted === 0 && (
+                <Alert kind="warn">{t('restoreNoDates')}</Alert>
+              )}
               {result.stats.unknown.length > 0 && (
                 <Alert kind="warn">
                   {t('unknownCodes', {
@@ -245,7 +264,7 @@ export function UnmaskPanel() {
                   type="button"
                   className={btnPrimary}
                   onClick={() =>
-                    downloadBlob(result.buffer, `${baseName(result.fileName)}_restored.${result.format}`, MIME[result.format])
+                    downloadBlob(result.buffer, restoredName(result.fileName, result.format), MIME[result.format])
                   }
                 >
                   <DownloadIcon /> {t('downloadRestored')}

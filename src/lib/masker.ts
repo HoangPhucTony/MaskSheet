@@ -12,7 +12,7 @@ import {
   type MappingFile,
 } from './mapping'
 import { randomFactor, rangeLabel, roundSignificant } from './money'
-import { colLetter, columnKey, isValidPrefix, normalizeSpace, sheetColumnKey, valueKey } from './normalize'
+import { colLetter, columnKey, isUsablePrefix, normalizeSpace, sheetColumnKey, valueKey } from './normalize'
 import { partialMask, REDACTED } from './partial'
 import { cellNumber, cellText, headersOf, isEmptyCell, numberCell, rowsOf, stripWorkbook, textCell, toStored, type Cell } from './sheet'
 import { METHODS, type ColumnConfig, type DataType, type MaskWarning, type StoredValue } from './types'
@@ -139,7 +139,7 @@ function validate(enabled: ColumnConfig[]) {
   const badMethod = enabled.filter((c) => !METHODS[c.type].includes(c.method) || (c.method === 'fake' && !canFake(c.type)))
   if (badMethod.length) throw new MaskError('bad-method', badMethod.map((c) => c.header))
   const badPrefix = enabled
-    .filter((c) => c.method === 'code' && (!isValidPrefix(c.prefix) || c.prefix.startsWith('FAKE_')))
+    .filter((c) => c.method === 'code' && !isUsablePrefix(c.prefix))
     .map((c) => c.prefix || c.header)
   if (badPrefix.length) throw new MaskError('bad-prefix', badPrefix)
 }
@@ -326,7 +326,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
     }
     for (const [col, { count, detail }] of skipped) {
       const header = plan.columns.find((pc) => pc.col === col)!.config.header
-      warnings.push({ kind: 'skipped', sheet: plan.name, header, count, detail })
+      warnings.push({ kind: 'skipped', sheet: plan.name, header, column: colLetter(col), count, detail })
     }
 
     // Look for obvious personal data in columns that were left as they are.
@@ -336,7 +336,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
         for (let r = plan.headerRow + 1; r <= plan.lastRow; r++) if (!isEmptyCell(rows[r]?.[col])) count++
         if (count) {
           // Says enough on its own; a second warning about the same column would only repeat it.
-          warnings.push({ kind: 'same-header-unmasked', sheet: plan.name, header, count })
+          warnings.push({ kind: 'same-header-unmasked', sheet: plan.name, header, column: colLetter(col), count })
           continue
         }
       }
@@ -353,9 +353,18 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
         }
       }
       for (const [kind, count] of counts) {
-        warnings.push({ kind: 'pii-unmasked', sheet: plan.name, header: header || colLetter(col), count, detail: kind })
+        warnings.push({ kind: 'pii-unmasked', sheet: plan.name, header: header || colLetter(col), column: colLetter(col), count, detail: kind })
       }
     }
+
+    // Rows above the header row (report title, author...) are never masked: flag personal data there.
+    let above = 0
+    for (let r = plan.firstRow; r < plan.headerRow; r++) {
+      for (const cell of rows[r] ?? []) {
+        if (cell?.t === 's' && PII_PATTERNS.some(([, re]) => re.test(cellText(cell)))) above++
+      }
+    }
+    if (above) warnings.push({ kind: 'pii-above-header', sheet: plan.name, header: '', count: above })
   }
 
   stripWorkbook(wb)
