@@ -151,6 +151,7 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
   const [configs, setConfigs] = useState<Record<string, ColumnConfig>>({})
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [activeSheet, setActiveSheet] = useState(0)
+  const [selectMenuOpen, setSelectMenuOpen] = useState(false)
   const [loadingRows, setLoadingRows] = useState(false)
   /** The worker is reading the file again with other header rows. */
   const [describing, setDescribing] = useState(false)
@@ -632,19 +633,27 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
                   {t('gridHelpShort')}
                   <Hint text={t('gridHelp')} align="start" />
                 </p>
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex flex-1 flex-wrap items-center gap-1">
                   {info.columns.some((c) => c.suggestion) && (
                     <Tooltip content={t('selectSuggestedHint')} align="end">
-                      <button type="button" className={cx(btnGhost, 'text-emerald-700 dark:text-emerald-400')} onClick={selectSuggested}>
+                      <button
+                        type="button"
+                        className={cx(btnGhost, 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950')}
+                        onClick={selectSuggested}
+                      >
                         <WandIcon /> {t('selectSuggested')}
                       </button>
                     </Tooltip>
                   )}
-                  <button type="button" className={btnGhost} onClick={() => setEnabled(() => true)}>
-                    {t('selectAll')}
-                  </button>
-                  <button type="button" className={btnGhost} onClick={() => setEnabled(() => false)}>
-                    {t('selectNone')}
+                  <button
+                    type="button"
+                    data-select-menu
+                    aria-haspopup="menu"
+                    aria-expanded={selectMenuOpen}
+                    className={btnGhost}
+                    onClick={() => setSelectMenuOpen((v) => !v)}
+                  >
+                    {t('selectMenu')} ▾
                   </button>
                   <Tooltip content={t('templateSaveHint')} align="end">
                     <button
@@ -662,7 +671,7 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
                     </button>
                   </Tooltip>
                   <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block dark:bg-slate-700" />
-                  <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs dark:bg-slate-800">
+                  <div className="ml-auto inline-flex rounded-lg bg-slate-100 p-0.5 text-xs dark:bg-slate-800">
                     {([false, true] as const).map((orig) => (
                       <button
                         key={String(orig)}
@@ -804,6 +813,41 @@ export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boo
             onChange={(patch) => update(activeColumn.key, patch)}
             onClose={() => setActiveKey(null)}
           />
+        </Popover>
+      )}
+
+      {info && selectMenuOpen && stage !== 'empty' && stage !== 'loading' && (
+        <Popover
+          anchorKey="select-menu"
+          anchor={() => document.querySelector<HTMLElement>('[data-select-menu]')}
+          ignoreOutside={(el) => !!el.closest('[data-select-menu]')}
+          onClose={() => setSelectMenuOpen(false)}
+          label={t('selectMenu')}
+          width={220}
+        >
+          <ul className="p-1 text-sm">
+            {[
+              { label: t('selectAll'), run: () => setEnabled(() => true) },
+              { label: t('selectNone'), run: () => setEnabled(() => false) },
+              {
+                label: t('selectNoneSheet'),
+                run: () => setEnabled((k) => configs[k].enabled && configs[k].sheet !== info.sheets[activeSheet].name),
+              },
+            ].map((item) => (
+              <li key={item.label}>
+                <button
+                  type="button"
+                  className="w-full rounded-md px-3 py-1.5 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                  onClick={() => {
+                    setSelectMenuOpen(false)
+                    item.run()
+                  }}
+                >
+                  {item.label}
+                </button>
+              </li>
+            ))}
+          </ul>
         </Popover>
       )}
 

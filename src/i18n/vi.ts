@@ -42,6 +42,8 @@ export const vi = {
   selectSuggestedHint: 'Tự tick các cột mà MaskSheet đoán là nhạy cảm (tên, SĐT, email, CCCD, địa chỉ, công ty, tiền, ngày).',
   selectAll: 'Chọn tất cả',
   selectNone: 'Bỏ chọn',
+  selectMenu: 'Chọn',
+  selectNoneSheet: 'Bỏ chọn trong sheet này',
   colMask: 'Che',
   colColumn: 'Cột',
   colType: 'Loại dữ liệu',

@@ -41,6 +41,8 @@ export const en: Dict = {
   selectSuggestedHint: 'Tick every column MaskSheet thinks is sensitive (names, phones, emails, IDs, addresses, companies, amounts, dates).',
   selectAll: 'Select all',
   selectNone: 'Clear',
+  selectMenu: 'Select',
+  selectNoneSheet: 'Clear this sheet',
   colMask: 'Mask',
   colColumn: 'Column',
   colType: 'Data type',
