@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useI18n, type TKey } from '../i18n'
 import { colLetter } from '../lib/normalize'
 import { createPreviewer } from '../lib/preview'
+import { selectionBySheet } from '../lib/selection'
 import type { ColumnConfig } from '../lib/types'
 import { cx } from '../util'
 import { PREVIEW_PAGE, type ColumnInfo, type SheetInfo } from '../workers/protocol'
@@ -78,6 +79,7 @@ export function ColumnGrid({
     }
   }, [activeKey, activeSheet])
 
+  const counts = useMemo(() => selectionBySheet(sheets, configs), [sheets, configs])
   const suggestionOf = useMemo(() => new Map(columns.map((c) => [c.key, c.suggestion])), [columns])
 
   // One previewer for all sheets, so equal values show the same code everywhere.
@@ -106,6 +108,71 @@ export function ColumnGrid({
 
   return (
     <div data-column-grid className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+      {/* Sheet tabs on top, each with the number of columns picked in it */}
+      <div role="tablist" className="flex items-end gap-1 overflow-x-auto border-b border-slate-200 bg-slate-100 px-2 pt-1.5 dark:border-slate-800 dark:bg-slate-900">
+        {sheets.map((s, i) => {
+          const off = skipSheets.has(s.name)
+          const n = counts[s.name] ?? 0
+          const current = s === sheet
+          return (
+            <span
+              key={s.name}
+              className={cx(
+                'flex shrink-0 items-center rounded-t-lg border border-b-0 transition',
+                current
+                  ? '-mb-px border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950'
+                  : 'border-transparent hover:bg-white/70 dark:hover:bg-slate-800',
+              )}
+            >
+              {/* With one sheet there is nothing to choose. */}
+              {sheets.length > 1 && (
+                <input
+                  type="checkbox"
+                  checked={!off}
+                  onChange={() => onToggleSheet(s.name)}
+                  title={t('sheetToggle')}
+                  aria-label={`${t('sheetToggle')} ${s.name}`}
+                  className="ml-2 size-3.5 cursor-pointer accent-emerald-600"
+                />
+              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={current}
+                title={s.name}
+                onClick={() => onSelectSheet(i)}
+                className={cx(
+                  'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium',
+                  current ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
+                  off && 'line-through opacity-60',
+                )}
+              >
+                <span className="max-w-[12rem] truncate">{s.name}</span>
+                <span
+                  title={t('selectedCount', { n })}
+                  aria-label={t('selectedCount', { n })}
+                  className={cx(
+                    'rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums',
+                    n > 0
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                  )}
+                >
+                  {n}
+                </span>
+                {s.hidden && (
+                  <span
+                    title={t('sheetHiddenHint')}
+                    className="rounded bg-amber-100 px-1 py-px text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  >
+                    {t('sheetHidden')}
+                  </span>
+                )}
+              </button>
+            </span>
+          )
+        })}
+      </div>
       {skipped && (
         <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
           {t('sheetSkippedNote', { name: sheet.name })}
@@ -269,70 +336,19 @@ export function ColumnGrid({
             ))}
           </tbody>
         </table>
-        {rows.length < sheet.rowCount && (
-          <div className="sticky left-0 border-t border-slate-200 px-2 py-1.5 dark:border-slate-800">
-            <button
-              type="button"
-              className={cx(btnGhost, 'text-emerald-700 disabled:opacity-50 dark:text-emerald-400')}
-              disabled={loadingMore || busy}
-              onClick={() => onLoadMore(sheet)}
-            >
-              {loadingMore ? t('loadingMore') : t('loadMore', { n: Math.min(PREVIEW_PAGE, sheet.rowCount - rows.length) })}
-            </button>
-          </div>
-        )}
       </div>
-
-      {/* Sheet tabs at the bottom, like Excel */}
-      <div className="flex items-center gap-1 overflow-x-auto border-t border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900">
-        {sheets.map((s, i) => {
-          const off = skipSheets.has(s.name)
-          return (
-            <span
-              key={s.name}
-              className={cx(
-                'flex shrink-0 items-center rounded-lg transition',
-                s === sheet
-                  ? 'bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-slate-700'
-                  : 'hover:bg-white/70 dark:hover:bg-slate-800',
-              )}
-            >
-              {/* With one sheet there is nothing to choose. */}
-              {sheets.length > 1 && (
-                <input
-                  type="checkbox"
-                  checked={!off}
-                  onChange={() => onToggleSheet(s.name)}
-                  title={t('sheetToggle')}
-                  aria-label={`${t('sheetToggle')} ${s.name}`}
-                  className="ml-2 size-3.5 cursor-pointer accent-emerald-600"
-                />
-              )}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={s === sheet}
-                onClick={() => onSelectSheet(i)}
-                className={cx(
-                  'px-2.5 py-1 text-xs font-medium',
-                  s === sheet ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white',
-                  off && 'line-through opacity-60',
-                )}
-              >
-                {s.name}
-                {s.hidden && (
-                  <span
-                    title={t('sheetHiddenHint')}
-                    className="ml-1.5 rounded bg-amber-100 px-1 py-px text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                  >
-                    {t('sheetHidden')}
-                  </span>
-                )}
-              </button>
-            </span>
-          )
-        })}
-        <span className="ml-auto shrink-0 pl-3 text-[11px] text-slate-400">
+      <div className="flex items-center gap-3 border-t border-slate-200 bg-slate-50/70 px-2 py-1 dark:border-slate-800 dark:bg-slate-900/50">
+        {rows.length < sheet.rowCount && (
+          <button
+            type="button"
+            className={cx(btnGhost, 'text-emerald-700 disabled:opacity-50 dark:text-emerald-400')}
+            disabled={loadingMore || busy}
+            onClick={() => onLoadMore(sheet)}
+          >
+            {loadingMore ? t('loadingMore') : t('loadMore', { n: Math.min(PREVIEW_PAGE, sheet.rowCount - rows.length) })}
+          </button>
+        )}
+        <span className="ml-auto shrink-0 text-[11px] text-slate-400">
           {t('rowsShown', { n: rows.length, total: sheet.rowCount.toLocaleString() })}
         </span>
       </div>
