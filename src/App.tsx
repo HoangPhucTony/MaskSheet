@@ -20,9 +20,19 @@ import { cx } from './util'
 
 type Tab = 'mask' | 'unmask'
 
-function Badge({ icon, label, hint }: { icon: ReactNode; label: string; hint: string }) {
+function Badge({
+  icon,
+  label,
+  hint,
+  side,
+}: {
+  icon: ReactNode
+  label: string
+  hint: string
+  side?: 'top' | 'bottom'
+}) {
   return (
-    <Tooltip content={hint}>
+    <Tooltip content={hint} side={side}>
       <span
         tabIndex={0}
         className="inline-flex cursor-help items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-xs backdrop-blur transition hover:border-emerald-300 hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-emerald-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
@@ -87,7 +97,7 @@ export function App() {
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Badge icon={<ShieldIcon />} label={t('badgeLocal')} hint={t('badgeLocalHint')} />
               <Badge icon={<CloudOffIcon />} label={t('badgeNoUpload')} hint={t('badgeNoUploadHint')} />
-              <Badge icon={<SparkIcon />} label={t('howItWorks')} hint={t('howItWorksHint')} />
+              <Badge icon={<SparkIcon />} label={t('howItWorks')} hint={t('howItWorksHint')} side="bottom" />
             </div>
           </section>
         )}
