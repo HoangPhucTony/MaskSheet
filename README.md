@@ -49,6 +49,7 @@ flowchart LR
 | 🧰 **9 cách che** | Mã ẩn danh, dữ liệu giả, che một phần, xóa trắng, nhân hệ số, làm tròn, khoảng giá trị, dịch ngày, chỉ giữ tháng. |
 | 🪄 **Tự nhận diện cột** | Gợi ý loại dữ liệu từ tên cột (Họ tên, SĐT, CCCD…) và nội dung (email, SĐT Việt Nam, ngày tháng). |
 | 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn, mỗi sheet chọn riêng. Cột đã chọn hiển thị ngay "AI sẽ thấy gì". Bấm *Xem tiếp* để xem thêm dòng. |
+| 🧾 **Dòng tiêu đề** | Tự bỏ qua tên báo cáo, dòng trống và dòng nhóm phía trên bảng; chọn lại dòng tiêu đề cho từng sheet nếu cần. Template nhớ lựa chọn này. |
 | 👀 **Xem trước trực tiếp** | Mỗi cách che có ví dụ thật lấy từ dữ liệu của bạn, chuyển nhanh giữa "AI sẽ thấy" và "Dữ liệu gốc". |
 | ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
 | 🛡️ **Kiểm tra an toàn** | Cảnh báo SĐT/email/CCCD còn sót ở cột chưa che; từ chối khi dữ liệu gốc đã có chuỗi giống mã; báo mã do AI tự bịa ra. |
@@ -158,14 +159,14 @@ tests/                   # Vitest
 
 - SheetJS bản cộng đồng không giữ màu sắc và định dạng ô; chỉ giữ giá trị và định dạng số.
 - File `.xlsx` được đọc toàn bộ vào bộ nhớ, nên file rất lớn (trên 50MB) nên lưu thành CSV trước.
-- Dòng đầu tiên của mỗi sheet được coi là dòng tiêu đề.
+- Mỗi sheet chỉ có một dòng tiêu đề; các dòng phía trên nó (tên báo cáo, ghi chú…) được giữ nguyên, không che.
 - Với *dữ liệu giả*, nếu AI viết tắt hoặc chỉ gọi tên (vd. "anh Khoa") thì phần đó sẽ không được khôi phục. Dùng *mã ẩn danh* nếu cần chắc chắn.
 
 ### 🗺️ Lộ trình
 
 - [ ] Mã hóa file mapping bằng mật khẩu (Web Crypto)
 - [ ] Đọc CSV rất lớn theo luồng (streaming)
-- [ ] Chọn dòng tiêu đề khác dòng 1
+- [x] Chọn dòng tiêu đề khác dòng 1 (tự đoán, đổi được cho từng sheet)
 - [ ] Hỗ trợ file Word / PDF
 
 ### 🤝 Đóng góp

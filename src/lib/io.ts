@@ -1,7 +1,7 @@
 import { unzipSync, zipSync } from 'fflate'
 import * as XLSX from 'xlsx'
 import { formatOf, type FileFormat } from './fileName'
-import { trimRange } from './sheet'
+import { fillRows, trimRange } from './sheet'
 
 export type { FileFormat }
 
@@ -31,6 +31,7 @@ export function readWorkbook(data: ArrayBuffer | Uint8Array, fileName: string): 
 
 /** Serialize a workbook. CSV gets a UTF-8 BOM so Excel shows Vietnamese correctly. */
 export function writeWorkbook(wb: XLSX.WorkBook, format: FileFormat): Uint8Array {
+  for (const name of wb.SheetNames) fillRows(wb.Sheets[name])
   if (format === 'csv') {
     const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { blankrows: true })
     return new TextEncoder().encode('\uFEFF' + csv)

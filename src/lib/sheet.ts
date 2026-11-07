@@ -30,28 +30,50 @@ export function isEmptyCell(cell: Cell | undefined): boolean {
 }
 
 /**
- * Shrink a sheet's range to the cells that hold a value. Some files declare a range far
- * larger than their data (e.g. A1:XFD1048576), which would otherwise mean scanning a
- * million rows and showing 16,384 columns.
+ * Shrink a sheet's range to the cells that hold a value, on every side. Some files declare
+ * a range far larger than their data (e.g. A1:XFD1048576), which would otherwise mean
+ * scanning a million rows and showing 16,384 columns; others declare A1 while the table
+ * starts lower down, which would make an empty row the header row.
  */
 export function trimRange(ws: XLSX.WorkSheet): void {
   const range = rangeOf(ws)
   if (!range) return
   const rows = rowsOf(ws)
+  let firstRow = -1
   let lastRow = -1
+  let firstCol = Infinity
   let lastCol = -1
   for (let r = range.s.r; r <= Math.min(range.e.r, rows.length - 1); r++) {
     const row = rows[r]
     if (!row) continue
-    for (let c = Math.min(range.e.c, row.length - 1); c >= range.s.c; c--) {
-      if (isEmptyCell(row[c])) continue
-      lastRow = r
-      if (c > lastCol) lastCol = c
-      break
-    }
+    const end = Math.min(range.e.c, row.length - 1)
+    let c = range.s.c
+    while (c <= end && isEmptyCell(row[c])) c++
+    if (c > end) continue
+    if (firstRow < 0) firstRow = r
+    lastRow = r
+    if (c < firstCol) firstCol = c
+    let e = end
+    while (isEmptyCell(row[e])) e--
+    if (e > lastCol) lastCol = e
   }
-  if (lastRow < 0) delete ws['!ref']
-  else ws['!ref'] = XLSX.utils.encode_range({ s: range.s, e: { r: lastRow, c: lastCol } })
+  if (lastRow < 0) {
+    delete ws['!ref']
+    return
+  }
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: firstRow, c: firstCol }, e: { r: lastRow, c: lastCol } })
+  fillRows(ws)
+}
+
+/**
+ * Give every row of the range an array. SheetJS leaves empty rows out of dense sheets
+ * but its writer expects them, and crashes with "reading '0'" on a blank row.
+ */
+export function fillRows(ws: XLSX.WorkSheet): void {
+  const range = rangeOf(ws)
+  if (!range) return
+  const rows = rowsOf(ws)
+  for (let r = range.s.r; r <= range.e.r; r++) if (!rows[r]) rows[r] = []
 }
 
 /** Remove sheets from a workbook, keeping the per-sheet metadata aligned. */
@@ -64,7 +86,9 @@ export function dropSheets(wb: XLSX.WorkBook, names: string[]): void {
 }
 
 export interface SheetHeaders {
-  /** Index of the header row (first row of the used range). */
+  /** First row of the used range; rows above the header (titles...) start here. */
+  firstRow: number
+  /** Index of the header row. Data starts on the next row. */
   headerRow: number
   firstCol: number
   lastCol: number
@@ -73,15 +97,62 @@ export interface SheetHeaders {
   headers: string[]
 }
 
-export function headersOf(ws: XLSX.WorkSheet): SheetHeaders | null {
+/** Rows looked at when guessing the header row, and offered when choosing it. */
+export const HEADER_SCAN_ROWS = 30
+
+function filledCount(row: Row | undefined, range: XLSX.Range): number {
+  let n = 0
+  if (row) for (let c = range.s.c; c <= range.e.c; c++) if (!isEmptyCell(row[c])) n++
+  return n
+}
+
+/**
+ * Guess the header row: the first row filled at least 60% as much as the fullest of the
+ * first rows. This skips report titles (often one merged cell), empty rows, and the group
+ * row of a two-row header ("Customer | Sales" above "Name | Phone | Oct | Nov").
+ */
+export function detectHeaderRow(ws: XLSX.WorkSheet): number {
+  const range = rangeOf(ws)
+  if (!range) return 0
+  const rows = rowsOf(ws)
+  const filled: number[] = []
+  for (let r = range.s.r; r <= Math.min(range.e.r, range.s.r + HEADER_SCAN_ROWS - 1); r++) filled.push(filledCount(rows[r], range))
+  const max = Math.max(...filled)
+  const need = max >= 2 ? Math.max(2, Math.ceil(max * 0.6)) : 1
+  return range.s.r + Math.max(0, filled.findIndex((n) => n >= need))
+}
+
+/** Rows that can be chosen as the header row, with a few of their values for display. */
+export function headerChoices(ws: XLSX.WorkSheet): { row: number; label: string }[] {
+  const range = rangeOf(ws)
+  if (!range) return []
+  const rows = rowsOf(ws)
+  const out: { row: number; label: string }[] = []
+  for (let r = range.s.r; r <= Math.min(range.e.r, range.s.r + HEADER_SCAN_ROWS - 1); r++) {
+    const texts: string[] = []
+    for (let c = range.s.c; c <= range.e.c && texts.length < 3; c++) {
+      const text = cellText(rows[r]?.[c]).trim()
+      if (text) texts.push(text.length > 32 ? text.slice(0, 31) + '…' : text)
+    }
+    out.push({ row: r, label: texts.join(' · ') })
+  }
+  return out
+}
+
+/**
+ * Headers of a sheet, read from `headerRow` when it lies inside the used range, otherwise
+ * from the detected header row (see `detectHeaderRow`).
+ */
+export function headersOf(ws: XLSX.WorkSheet, headerRow?: number): SheetHeaders | null {
   const range = rangeOf(ws)
   if (!range) return null
   const rows = rowsOf(ws)
-  const headerRow = range.s.r
-  const row = rows[headerRow] ?? []
+  const hr =
+    headerRow !== undefined && Number.isInteger(headerRow) && headerRow >= range.s.r && headerRow <= range.e.r ? headerRow : detectHeaderRow(ws)
+  const row = rows[hr] ?? []
   const headers: string[] = []
   for (let c = range.s.c; c <= range.e.c; c++) headers.push(cellText(row[c]).trim())
-  return { headerRow, firstCol: range.s.c, lastCol: range.e.c, lastRow: range.e.r, headers }
+  return { firstRow: range.s.r, headerRow: hr, firstCol: range.s.c, lastCol: range.e.c, lastRow: range.e.r, headers }
 }
 
 /** `count` data rows from data row `start` (0 = first row below the headers), as display text. */

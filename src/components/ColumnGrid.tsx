@@ -6,6 +6,7 @@ import type { ColumnConfig } from '../lib/types'
 import { cx } from '../util'
 import { PREVIEW_PAGE, type ColumnInfo, type SheetInfo } from '../workers/protocol'
 import { CheckIcon, WandIcon } from './icons'
+import { Hint } from './Tooltip'
 import { TYPE_ICON } from './typeMeta'
 import { btnGhost } from './ui'
 
@@ -20,6 +21,10 @@ interface Props {
   /** Load the next preview rows of a sheet. */
   onLoadMore: (sheet: SheetInfo) => void
   loadingMore: boolean
+  /** Use another row of a sheet as its header row. */
+  onHeaderRow: (sheet: string, row: number) => void
+  /** The file is being read again after a header row change. */
+  describing: boolean
   /** A mask run is in progress. */
   busy: boolean
   /** Click on a column (header or any cell): select it and open its settings. */
@@ -45,6 +50,8 @@ export function ColumnGrid({
   onSelectSheet,
   onLoadMore,
   loadingMore,
+  onHeaderRow,
+  describing,
   busy,
   onOpen,
   onToggle,
@@ -87,6 +94,9 @@ export function ColumnGrid({
   }, [sheets, configs])
   const shown = showOriginal ? rows : masked[sheets.indexOf(sheet)]
   const skipped = skipSheets.has(sheet.name)
+  const choices = sheet.headerChoices.some((c) => c.row === sheet.headerRow)
+    ? sheet.headerChoices
+    : [...sheet.headerChoices, { row: sheet.headerRow, label: sheet.headers.filter(Boolean).slice(0, 3).join(' · ') }]
 
   const colState = (c: number) => {
     const key = sheet.keys[c]
@@ -101,6 +111,30 @@ export function ColumnGrid({
           {t('sheetSkippedNote', { name: sheet.name })}
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+        <label htmlFor="header-row" className="font-semibold">
+          {t('headerRowLabel')}
+        </label>
+        <select
+          id="header-row"
+          value={sheet.headerRow}
+          disabled={busy || describing}
+          onChange={(e) => onHeaderRow(sheet.name, Number(e.target.value))}
+          className="max-w-[min(24rem,60vw)] truncate rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-xs text-slate-800 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {choices.map((c) => (
+            <option key={c.row} value={c.row}>
+              {t('headerRowOption', { n: c.row + 1, text: c.label || t('headerRowEmpty') })}
+            </option>
+          ))}
+        </select>
+        <Hint text={t('headerRowHint')} align="start" />
+        {describing ? (
+          <span className="text-slate-500">{t('describing')}</span>
+        ) : (
+          sheet.headerRow > sheet.firstRow && <span className="text-slate-500">{t('headerRowAbove', { n: sheet.headerRow - sheet.firstRow })}</span>
+        )}
+      </div>
       <div
         ref={scrollRef}
         className={cx('max-h-[30rem] overflow-auto transition-opacity', skipped && 'opacity-40')}
@@ -135,7 +169,9 @@ export function ColumnGrid({
             </tr>
             {/* Header names: the main click target */}
             <tr>
-              <th className="sticky left-0 z-30 border-r border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900" />
+              <th className="sticky left-0 z-30 border-r border-b border-slate-200 bg-slate-50 px-2 text-center text-[11px] font-medium text-slate-400 dark:border-slate-800 dark:bg-slate-900">
+                {sheet.headerRow + 1}
+              </th>
               {header.map((h, c) => {
                 const { key, cfg, on, active, hover } = colState(c)
                 const suggestion = suggestionOf.get(key)
@@ -201,7 +237,7 @@ export function ColumnGrid({
             {shown.map((row, r) => (
               <tr key={r}>
                 <td className="sticky left-0 z-10 border-r border-b border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-[11px] font-medium text-slate-400 dark:border-slate-800 dark:bg-slate-900">
-                  {r + 2}
+                  {sheet.headerRow + r + 2}
                 </td>
                 {row.map((v, c) => {
                   const { key, on, active, hover } = colState(c)

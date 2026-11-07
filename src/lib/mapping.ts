@@ -36,6 +36,8 @@ export interface MappingFile {
    * only in the columns listed in `columns`; other sheets are matched by header.
    */
   sheets?: string[]
+  /** Header row (0-based) of each sheet of the masked file. Rows above it were left as they are. */
+  headerRows?: Record<string, number>
   columns: MappingColumn[]
   /** Dictionary key (code prefix, or FAKE_<TYPE>) → dictionary. */
   dictionaries: Record<string, Dictionary>
@@ -101,6 +103,11 @@ function isStringArray(x: unknown): x is string[] {
   return Array.isArray(x) && x.every((s) => typeof s === 'string')
 }
 
+/** { sheet name: 0-based row index }, as used for header rows. */
+export function isRowMap(x: unknown): x is Record<string, number> {
+  return isObject(x) && Object.values(x).every((v) => Number.isInteger(v) && (v as number) >= 0)
+}
+
 function isMappingColumn(x: unknown): boolean {
   return (
     isObject(x) &&
@@ -126,6 +133,7 @@ export function parseMapping(json: string): MappingFile {
   if (data.sheets !== undefined && !(isStringArray(data.sheets) && data.columns.every(isMappingColumn))) {
     throw new MappingError('corrupt')
   }
+  if (data.headerRows !== undefined && !isRowMap(data.headerRows)) throw new MappingError('corrupt')
   for (const [key, dict] of Object.entries(data.dictionaries)) {
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) throw new MappingError('corrupt')
     if (!isObject(dict) || typeof dict.width !== 'number' || !Array.isArray(dict.entries)) {

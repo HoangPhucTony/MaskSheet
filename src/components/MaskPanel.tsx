@@ -78,6 +78,11 @@ function initialConfigs(info: WorkbookInfo): Record<string, ColumnConfig> {
   return configs
 }
 
+/** Header row of every sheet, as shown in the app. */
+function headerRowsOf(info: WorkbookInfo): Record<string, number> {
+  return Object.fromEntries(info.sheets.map((s) => [s.name, s.headerRow]))
+}
+
 function Stepper({ current }: { current: number }) {
   const { t } = useI18n()
   const steps: [string, string][] = [
@@ -133,6 +138,10 @@ export function MaskPanel() {
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [activeSheet, setActiveSheet] = useState(0)
   const [loadingRows, setLoadingRows] = useState(false)
+  /** The worker is reading the file again with other header rows. */
+  const [describing, setDescribing] = useState(false)
+  /** Template to apply once the file has been read again with its header rows. */
+  const afterDescribe = useRef<Template | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [touchedPrefix, setTouchedPrefix] = useState<Set<string>>(new Set())
   const [skipSheets, setSkipSheets] = useState<Set<string>>(new Set())
@@ -178,6 +187,25 @@ export function MaskPanel() {
           setStage('ready')
           break
         }
+        case 'described': {
+          setDescribing(false)
+          const template = afterDescribe.current
+          afterDescribe.current = null
+          if (template) {
+            setInfo(msg.info)
+            applyTemplateTo(template, msg.info)
+            break
+          }
+          // Sheets whose header row changed start over; the others keep their settings and loaded rows.
+          const old = new Map((info?.sheets ?? []).map((s) => [s.name, s]))
+          const changed = new Set(msg.info.sheets.filter((s) => old.get(s.name)?.headerRow !== s.headerRow).map((s) => s.name))
+          const fresh = initialConfigs(msg.info)
+          setConfigs((prev) => Object.fromEntries(Object.entries(fresh).map(([k, c]) => [k, changed.has(c.sheet) || !prev[k] ? c : prev[k]])))
+          setTouchedPrefix((s) => new Set([...s].filter((k) => fresh[k] && !changed.has(fresh[k].sheet))))
+          setInfo({ ...msg.info, sheets: msg.info.sheets.map((s) => (changed.has(s.name) ? s : (old.get(s.name) ?? s))) })
+          setActiveKey(null)
+          break
+        }
         case 'rows':
           setLoadingRows(false)
           // Ignore an answer that no longer fits, e.g. from a file that was replaced meanwhile.
@@ -202,6 +230,8 @@ export function MaskPanel() {
           break
         case 'error':
           setLoadingRows(false)
+          setDescribing(false)
+          afterDescribe.current = null
           fail(msg, stageRef.current === 'loading' ? 'empty' : stageRef.current === 'done' ? 'done' : 'ready')
           break
       }
@@ -209,6 +239,8 @@ export function MaskPanel() {
     () => {
       setError(t('err_worker_crashed'))
       setLoadingRows(false)
+      setDescribing(false)
+      afterDescribe.current = null
       setInfo(null)
       setStage('empty')
     },
@@ -222,7 +254,7 @@ export function MaskPanel() {
     try {
       const buffer = await getBuffer()
       setFile({ name, size: buffer.byteLength })
-      post({ type: 'load', buffer, fileName: name }, [buffer])
+      post({ type: 'load', buffer, fileName: name, headerRows: pendingTemplate?.headerRows }, [buffer])
     } catch (err) {
       setError(errorText(t, { code: 'read-failed', details: [String(err)] }))
       setStage('empty')
@@ -274,9 +306,18 @@ export function MaskPanel() {
     })
   }
 
+  /** Read a sheet again with another header row. Its columns start over. */
+  const changeHeaderRow = (sheet: string, row: number) => {
+    if (!info) return
+    invalidateOutput()
+    setDescribing(true)
+    setActiveKey(null)
+    post({ type: 'describe', headerRows: { ...headerRowsOf(info), [sheet]: row } })
+  }
+
   const loadMoreRows = (sheet: SheetInfo) => {
     setLoadingRows(true)
-    post({ type: 'rows', sheet: sheet.name, start: sheet.preview.length - 1, count: PREVIEW_PAGE })
+    post({ type: 'rows', sheet: sheet.name, headerRow: sheet.headerRow, start: sheet.preview.length - 1, count: PREVIEW_PAGE })
   }
 
   /** Click on a column: select it and open its settings popup (click again to close). */
@@ -320,6 +361,20 @@ export function MaskPanel() {
     setActiveKey(null)
   }
 
+  /** Apply a template the app suggested for the loaded file, first switching to its header rows if needed. */
+  const applySuggested = (template: Template) => {
+    if (!info) return
+    invalidateOutput()
+    const wanted = template.headerRows ?? {}
+    if (info.sheets.some((s) => wanted[s.name] !== undefined && wanted[s.name] !== s.headerRow)) {
+      afterDescribe.current = template
+      setDescribing(true)
+      post({ type: 'describe', headerRows: { ...headerRowsOf(info), ...wanted } })
+    } else {
+      applyTemplateTo(template, info)
+    }
+  }
+
   /** Apply a template to the loaded file, replacing the current selection. */
   const applyTemplateTo = (template: Template, fileInfo: WorkbookInfo) => {
     const result = applyTemplate(template, initialConfigs(fileInfo), fileInfo.sheets.map((s) => s.name))
@@ -347,6 +402,9 @@ export function MaskPanel() {
       info!.fileName,
       Object.values(configs),
       skipSheets.size ? info!.sheets.filter((s) => !skipSheets.has(s.name)).map((s) => s.name) : undefined,
+      new Date(),
+      // Only header rows the user changed: detection keeps working for the others.
+      Object.fromEntries(info!.sheets.filter((s) => !skipSheets.has(s.name) && s.headerRow !== s.autoHeaderRow).map((s) => [s.name, s.headerRow])),
     )
 
   const saveTemplate = (name: string) => {
@@ -372,6 +430,7 @@ export function MaskPanel() {
       type: 'mask',
       configs: Object.values(configs).map((c) => (liveKeys.has(c.key) ? c : { ...c, enabled: false })),
       skipSheets: [...skipSheets],
+      headerRows: headerRowsOf(info!),
     })
   }
 
@@ -384,6 +443,8 @@ export function MaskPanel() {
     setActiveKey(null)
     setActiveSheet(0)
     setLoadingRows(false)
+    setDescribing(false)
+    afterDescribe.current = null
     setSkipSheets(new Set())
     setTemplateNote(null)
     setSuggestedTemplate(null)
@@ -483,10 +544,8 @@ export function MaskPanel() {
                     <button
                       type="button"
                       className="rounded-lg bg-sky-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-sky-700"
-                      onClick={() => {
-                        invalidateOutput()
-                        applyTemplateTo(suggestedTemplate, info)
-                      }}
+                      disabled={describing}
+                      onClick={() => applySuggested(suggestedTemplate)}
                     >
                       {t('templateApply')}
                     </button>
@@ -564,6 +623,8 @@ export function MaskPanel() {
                 onSelectSheet={setActiveSheet}
                 onLoadMore={loadMoreRows}
                 loadingMore={loadingRows}
+                onHeaderRow={changeHeaderRow}
+                describing={describing}
                 busy={stage === 'masking'}
                 onOpen={open}
                 onToggle={toggle}
@@ -633,7 +694,7 @@ export function MaskPanel() {
               ) : (
                 <>
                   <Tooltip content={t('maskButtonHint')} align="start">
-                    <button type="button" className={btnPrimary} disabled={selected.length === 0} onClick={mask}>
+                    <button type="button" className={btnPrimary} disabled={selected.length === 0 || describing} onClick={mask}>
                       <ShieldIcon /> {t('maskButton')}
                     </button>
                   </Tooltip>

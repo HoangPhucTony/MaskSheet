@@ -5,7 +5,7 @@ import { readWorkbook, writeWorkbook, type FileFormat } from '../lib/io'
 import { stringifyMapping } from '../lib/mapping'
 import { maskWorkbook } from '../lib/masker'
 import { columnKey, sheetColumnKey } from '../lib/normalize'
-import { cellText, dropSheets, headersOf, readRows, rowsOf } from '../lib/sheet'
+import { cellText, detectHeaderRow, dropSheets, headerChoices, headersOf, readRows, rowsOf } from '../lib/sheet'
 import { toWorkerError, type ColumnInfo, type MaskRequest, type MaskResponse, type SheetInfo, type WorkbookInfo } from './protocol'
 
 declare const self: DedicatedWorkerGlobalScope
@@ -29,19 +29,31 @@ function post(msg: MaskResponse, transfer: Transferable[] = []) {
   self.postMessage(msg, transfer)
 }
 
-function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat): WorkbookInfo {
+function describe(wb: XLSX.WorkBook, fileName: string, format: FileFormat, headerRows: Record<string, number> = {}): WorkbookInfo {
   const sheets: SheetInfo[] = []
   const columns: (ColumnInfo & { _all: Sample })[] = []
   // Cells sampled per header, across sheets. Columns without a header are judged alone.
   const byHeader = new Map<string, Sample>()
 
   for (const name of wb.SheetNames) {
-    const h = headersOf(wb.Sheets[name])
+    const ws = wb.Sheets[name]
+    const h = headersOf(ws, headerRows[name])
     if (!h) continue
-    const rows = rowsOf(wb.Sheets[name])
+    const rows = rowsOf(ws)
     const keys = h.headers.map((_, i) => sheetColumnKey(name, h.firstCol + i))
     const preview = [h.headers.map((_, i) => cellText(rows[h.headerRow]?.[h.firstCol + i])), ...readRows(wb.Sheets[name], h, 0, PREVIEW_ROWS)]
-    sheets.push({ name, rowCount: h.lastRow - h.headerRow, firstCol: h.firstCol, headers: h.headers, keys, preview })
+    sheets.push({
+      name,
+      rowCount: h.lastRow - h.headerRow,
+      firstRow: h.firstRow,
+      headerRow: h.headerRow,
+      autoHeaderRow: detectHeaderRow(ws),
+      headerChoices: headerChoices(ws),
+      firstCol: h.firstCol,
+      headers: h.headers,
+      keys,
+      preview,
+    })
 
     h.headers.forEach((header, i) => {
       const c = h.firstCol + i
@@ -87,12 +99,23 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
   if (msg.type === 'load') {
     try {
       const { wb, format } = readWorkbook(msg.buffer, msg.fileName)
-      const info = describe(wb, msg.fileName, format)
+      const info = describe(wb, msg.fileName, format, msg.headerRows)
       if (info.sheets.length === 0) return post({ type: 'error', code: 'empty', details: [] })
       source = { buffer: msg.buffer, fileName: msg.fileName, format, parsed: wb }
       post({ type: 'loaded', info })
     } catch (err) {
       post(toWorkerError(err, 'read-failed'))
+    }
+    return
+  }
+
+  if (msg.type === 'describe') {
+    if (!source) return post({ type: 'error', code: 'empty', details: [] })
+    try {
+      source.parsed ??= readWorkbook(source.buffer, source.fileName).wb
+      post({ type: 'described', info: describe(source.parsed, source.fileName, source.format, msg.headerRows) })
+    } catch (err) {
+      post(toWorkerError(err))
     }
     return
   }
@@ -103,7 +126,7 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
       // After a mask run the workbook is gone; parse it again and keep it for the next run.
       source.parsed ??= readWorkbook(source.buffer, source.fileName).wb
       const ws = source.parsed.Sheets[msg.sheet]
-      const h = ws ? headersOf(ws) : null
+      const h = ws ? headersOf(ws, msg.headerRow) : null
       post({ type: 'rows', sheet: msg.sheet, start: msg.start, rows: h ? readRows(ws, h, msg.start, msg.count) : [] })
     } catch (err) {
       post(toWorkerError(err))
@@ -125,6 +148,7 @@ self.onmessage = (e: MessageEvent<MaskRequest>) => {
       const result = maskWorkbook(wb, msg.configs, {
         sourceFile: source.fileName,
         outputFormat: format,
+        headerRows: msg.headerRows,
         onProgress: (done, total) => post({ type: 'progress', done, total, phase: 'mask' }),
       })
       post({ type: 'progress', done: 0, total: 1, phase: 'write' })

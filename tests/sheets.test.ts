@@ -51,6 +51,15 @@ describe('columns are chosen per sheet', () => {
     const { warnings } = maskWorkbook(wb, [colIn('X', 0, 'Họ tên', 'name')], opts)
     expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'Họ tên', count: 2 }])
   })
+
+  it('gives a single warning for such a column, even if it also looks like personal data', () => {
+    const wb = book({
+      X: [['SĐT'], ['0912345678']],
+      Y: [['SĐT'], ['0987654321']],
+    })
+    const { warnings } = maskWorkbook(wb, [colIn('X', 0, 'SĐT', 'phone')], opts)
+    expect(warnings).toEqual([{ kind: 'same-header-unmasked', sheet: 'Y', header: 'SĐT', count: 1 }])
+  })
 })
 
 describe('restoring amounts and dates per sheet', () => {

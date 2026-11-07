@@ -11,6 +11,14 @@ export interface SheetInfo {
   name: string
   /** Data rows, header excluded. */
   rowCount: number
+  /** First row of the used range (0 = row 1). Rows from here to the header are left as they are. */
+  firstRow: number
+  /** Index of the header row (0 = row 1); the table may start below row 1. */
+  headerRow: number
+  /** Header row the app detected, to tell it apart from one the user chose. */
+  autoHeaderRow: number
+  /** Rows that can be chosen as the header row, with a few of their values. */
+  headerChoices: { row: number; label: string }[]
   /** Index of the first column (0 = A). */
   firstCol: number
   headers: string[]
@@ -68,13 +76,17 @@ export interface Progress {
 }
 
 export type MaskRequest =
-  | { type: 'load'; buffer: ArrayBuffer; fileName: string }
-  | { type: 'mask'; configs: ColumnConfig[]; skipSheets: string[] }
-  /** Load more preview rows; `start` counts data rows (0 = first row below the headers). */
-  | { type: 'rows'; sheet: string; start: number; count: number }
+  /** `headerRows`: header rows to use instead of the detected ones (e.g. from a template). */
+  | { type: 'load'; buffer: ArrayBuffer; fileName: string; headerRows?: Record<string, number> }
+  /** Describe the loaded file again with other header rows. */
+  | { type: 'describe'; headerRows: Record<string, number> }
+  | { type: 'mask'; configs: ColumnConfig[]; skipSheets: string[]; headerRows: Record<string, number> }
+  /** Load more preview rows; `start` counts data rows (0 = first row below the header row). */
+  | { type: 'rows'; sheet: string; headerRow: number; start: number; count: number }
 
 export type MaskResponse =
   | { type: 'loaded'; info: WorkbookInfo }
+  | { type: 'described'; info: WorkbookInfo }
   | { type: 'rows'; sheet: string; start: number; rows: string[][] }
   | Progress
   | {

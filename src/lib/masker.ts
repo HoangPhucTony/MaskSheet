@@ -12,7 +12,7 @@ import {
   type MappingFile,
 } from './mapping'
 import { randomFactor, rangeLabel, roundSignificant } from './money'
-import { colLetter, columnKey, isValidPrefix, sheetColumnKey, valueKey } from './normalize'
+import { colLetter, columnKey, isValidPrefix, normalizeSpace, sheetColumnKey, valueKey } from './normalize'
 import { partialMask, REDACTED } from './partial'
 import { cellNumber, cellText, headersOf, isEmptyCell, numberCell, rowsOf, stripWorkbook, textCell, toStored, type Cell } from './sheet'
 import { METHODS, type ColumnConfig, type DataType, type MaskWarning, type StoredValue } from './types'
@@ -20,6 +20,8 @@ import { METHODS, type ColumnConfig, type DataType, type MaskWarning, type Store
 export interface MaskOptions {
   sourceFile: string
   outputFormat: 'xlsx' | 'csv'
+  /** Header row (0-based) per sheet, as chosen in the app; other sheets use the detected one. */
+  headerRows?: Record<string, number>
   /** Uniform random in [0, 1). Defaults to crypto.getRandomValues. */
   random?: () => number
   /** Called with (rowsDone, rowsTotal), at most once per PROGRESS_STEP rows. */
@@ -83,6 +85,23 @@ const PII_PATTERNS: [string, RegExp][] = [
   ['id', /(?<!\d)0\d{11}(?!\d)/],
 ]
 
+/** Text of a cell to mask; '' for empty cells and Excel errors (#N/A...), which are left as they are. */
+function maskableText(cell: Cell | undefined): string {
+  return cell?.t === 'e' ? '' : cellText(cell)
+}
+
+/** Every text in the file, so fake values can avoid what is really there. */
+function textsOf(wb: XLSX.WorkBook, plans: SheetPlan[]): Set<string> {
+  const texts = new Set<string>()
+  for (const plan of plans) {
+    for (const row of rowsOf(wb.Sheets[plan.name])) {
+      if (!row) continue
+      for (const cell of row) if (cell?.t === 's') texts.add(normalizeSpace(cellText(cell)))
+    }
+  }
+  return texts
+}
+
 interface ColumnPlan {
   col: number
   config: ColumnConfig
@@ -90,6 +109,7 @@ interface ColumnPlan {
 
 interface SheetPlan {
   name: string
+  firstRow: number
   headerRow: number
   lastRow: number
   columns: ColumnPlan[]
@@ -97,12 +117,12 @@ interface SheetPlan {
   unmasked: { col: number; header: string }[]
 }
 
-function planSheets(wb: XLSX.WorkBook, byKey: Map<string, ColumnConfig>): SheetPlan[] {
+function planSheets(wb: XLSX.WorkBook, byKey: Map<string, ColumnConfig>, headerRows: Record<string, number> = {}): SheetPlan[] {
   const plans: SheetPlan[] = []
   for (const name of wb.SheetNames) {
-    const h = headersOf(wb.Sheets[name])
+    const h = headersOf(wb.Sheets[name], headerRows[name])
     if (!h) continue
-    const plan: SheetPlan = { name, headerRow: h.headerRow, lastRow: h.lastRow, columns: [], unmasked: [] }
+    const plan: SheetPlan = { name, firstRow: h.firstRow, headerRow: h.headerRow, lastRow: h.lastRow, columns: [], unmasked: [] }
     h.headers.forEach((header, i) => {
       const col = h.firstCol + i
       const config = byKey.get(sheetColumnKey(name, col))
@@ -131,7 +151,7 @@ function checkCollisions(wb: XLSX.WorkBook, plans: SheetPlan[], prefixes: string
   const hits: string[] = []
   for (const plan of plans) {
     const rows = rowsOf(wb.Sheets[plan.name])
-    for (let r = plan.headerRow; r <= plan.lastRow && hits.length < 5; r++) {
+    for (let r = plan.firstRow; r <= plan.lastRow && hits.length < 5; r++) {
       const row = rows[r]
       if (!row) continue
       for (let c = 0; c < row.length && hits.length < 5; c++) {
@@ -156,7 +176,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
   validate(enabled)
 
   const byKey = new Map(enabled.map((c) => [c.key, c]))
-  const plans = planSheets(wb, byKey)
+  const plans = planSheets(wb, byKey, opts.headerRows)
   checkCollisions(wb, plans, [...new Set(enabled.filter((c) => c.method === 'code').map((c) => c.prefix))])
 
   const random = opts.random ?? cryptoRandom
@@ -191,7 +211,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
       if (row) {
         for (const { col, config, dict } of dictCols) {
           const cell = row[col]
-          const text = cellText(cell)
+          const text = maskableText(cell)
           if (text.trim() === '') continue
           const key = valueKey(config.type, text)
           if (!dict.index.has(key)) {
@@ -205,12 +225,15 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
   }
 
   const dictionaries: Record<string, Dictionary> = {}
+  let realTexts: Set<string> | null = null
   for (const [key, d] of dicts) {
     const dict: Dictionary = { width: Math.max(4, String(d.entries.length).length), entries: d.entries }
     if (d.method === 'fake' && canFake(d.type)) {
-      // A fake value must never equal a real one, or restoring would be ambiguous.
+      // A fake value must never equal a real one, in this column or anywhere else in the
+      // file (e.g. a column left as is), or restoring would overwrite that real value.
       const type = d.type
-      const next = makeFaker(type, random, (v) => d.index.has(valueKey(type, v)))
+      const taken = (realTexts ??= textsOf(wb, plans))
+      const next = makeFaker(type, random, (v) => d.index.has(valueKey(type, v)) || taken.has(normalizeSpace(v)))
       dict.fakes = d.entries.map(() => next())
     }
     dictionaries[key] = dict
@@ -286,7 +309,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
       if (row) {
         for (const { col, config } of plan.columns) {
           const cell = row[col]
-          const text = cellText(cell)
+          const text = maskableText(cell)
           if (text.trim() === '') continue
           const out = transform(config, cell!, text)
           if (typeof out === 'string') {
@@ -311,7 +334,11 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
       if (header && [...(maskedIn.get(columnKey(header, col)) ?? [])].some((sheet) => sheet !== plan.name)) {
         let count = 0
         for (let r = plan.headerRow + 1; r <= plan.lastRow; r++) if (!isEmptyCell(rows[r]?.[col])) count++
-        if (count) warnings.push({ kind: 'same-header-unmasked', sheet: plan.name, header, count })
+        if (count) {
+          // Says enough on its own; a second warning about the same column would only repeat it.
+          warnings.push({ kind: 'same-header-unmasked', sheet: plan.name, header, count })
+          continue
+        }
       }
       const counts = new Map<string, number>()
       for (let r = plan.headerRow + 1; r <= plan.lastRow; r++) {
@@ -343,6 +370,7 @@ export function maskWorkbook(wb: XLSX.WorkBook, configs: ColumnConfig[], opts: M
     sourceFile: opts.sourceFile,
     outputFormat: opts.outputFormat,
     sheets: [...wb.SheetNames],
+    headerRows: Object.fromEntries(plans.map((p) => [p.name, p.headerRow])),
     columns: mappingColumns,
     dictionaries,
     ...(factor !== 1 ? { money: { factor, multipliedHeaders: keysWith('multiply') } } : {}),

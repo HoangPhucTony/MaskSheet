@@ -41,7 +41,7 @@ export const vi = {
 
   // Mask flow
   step1: 'Chọn file',
-  step1Hint: 'File chỉ được đọc trong trình duyệt. Dòng đầu tiên của mỗi sheet được coi là tiêu đề cột.',
+  step1Hint: 'File chỉ được đọc trong trình duyệt. Dòng tiêu đề của mỗi sheet được tự đoán và có thể đổi.',
   step2: 'Chọn cột và cách che',
   step2Hint:
     'Tick các cột cần che, chọn loại dữ liệu và cách che. Mỗi sheet chọn riêng; cột cùng tiền tố dùng chung bảng mã nên dữ liệu vẫn khớp với nhau.',
@@ -88,6 +88,12 @@ export const vi = {
   viewOriginal: 'Dữ liệu gốc',
   viewHint: '"AI sẽ thấy" hiển thị minh họa sau khi che. Số thứ tự mã và dữ liệu giả có thể khác file thật một chút.',
   rowsShown: '{n} / {total} dòng đầu',
+  headerRowLabel: 'Dòng tiêu đề',
+  headerRowOption: 'Dòng {n}: {text}',
+  headerRowEmpty: '(trống)',
+  headerRowHint: 'Dòng chứa tên cột; dữ liệu tính từ dòng ngay dưới. Các dòng phía trên (tên báo cáo, ghi chú…) được giữ nguyên, không che. MaskSheet tự đoán dòng này, hãy đổi nếu đoán sai. Đổi dòng tiêu đề sẽ bỏ chọn các cột của sheet này.',
+  headerRowAbove: '{n} dòng phía trên được giữ nguyên, không che',
+  describing: 'Đang đọc lại sheet…',
   loadMore: 'Xem tiếp {n} dòng',
   loadingMore: 'Đang tải…',
   columnLetter: 'Cột {letter}',

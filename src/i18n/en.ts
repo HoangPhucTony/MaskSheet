@@ -40,7 +40,7 @@ export const en: Dict = {
   bigFileWarning: 'Large file ({size}). The browser may slow down or run out of memory. Saving it as CSV first helps. Continue anyway?',
 
   step1: 'Choose a file',
-  step1Hint: 'The file is only read inside your browser. The first row of each sheet is treated as the header.',
+  step1Hint: 'The file is only read inside your browser. The header row of each sheet is guessed and can be changed.',
   step2: 'Pick columns and methods',
   step2Hint:
     'Tick the columns to mask, then choose a data type and a method. Each sheet is chosen separately; columns sharing a prefix share one dictionary, so the data still matches.',
@@ -85,6 +85,12 @@ export const en: Dict = {
   viewOriginal: 'Original data',
   viewHint: '"What AI sees" is an illustration of the masked result. Code numbers and fake values may differ slightly in the real file.',
   rowsShown: 'first {n} / {total} rows',
+  headerRowLabel: 'Header row',
+  headerRowOption: 'Row {n}: {text}',
+  headerRowEmpty: '(empty)',
+  headerRowHint: 'The row holding the column names; data starts on the row below. Rows above it (report title, notes…) are kept as they are, not masked. MaskSheet guesses this row; change it if the guess is wrong. Changing it clears the columns selected in this sheet.',
+  headerRowAbove: '{n} row(s) above are kept as they are, not masked',
+  describing: 'Reading the sheet again…',
   loadMore: 'Show {n} more rows',
   loadingMore: 'Loading…',
   columnLetter: 'Column {letter}',

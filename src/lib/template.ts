@@ -1,4 +1,5 @@
 import { methodsFor } from './fake'
+import { isRowMap } from './mapping'
 import { columnKey, isValidPrefix } from './normalize'
 import { DATA_TYPES, type ColumnConfig, type DataType, type Method } from './types'
 
@@ -31,6 +32,8 @@ export interface Template {
   sourceFile: string
   /** Sheets to keep. Absent when every sheet was kept. */
   sheets?: string[]
+  /** Header rows (0-based) the user chose instead of the detected ones, per sheet. */
+  headerRows?: Record<string, number>
   /** Masked columns only. */
   columns: TemplateColumn[]
 }
@@ -45,6 +48,7 @@ export function makeTemplate(
   configs: ColumnConfig[],
   sheets: string[] | undefined,
   now = new Date(),
+  headerRows?: Record<string, number>,
 ): Template {
   return {
     format: TEMPLATE_FORMAT,
@@ -53,6 +57,7 @@ export function makeTemplate(
     createdAt: now.toISOString(),
     sourceFile,
     ...(sheets ? { sheets } : {}),
+    ...(headerRows && Object.keys(headerRows).length ? { headerRows } : {}),
     columns: configs
       .filter((c) => c.enabled)
       .map(({ col, sheet, header, type, method, prefix }) => ({ key: columnKey(header, col), header, sheet, type, method, prefix })),
@@ -91,6 +96,7 @@ export function parseTemplate(json: string): Template {
   if (data.sheets !== undefined && !(Array.isArray(data.sheets) && data.sheets.every((s) => typeof s === 'string'))) {
     throw new TemplateError('corrupt')
   }
+  if (data.headerRows !== undefined && !isRowMap(data.headerRows)) throw new TemplateError('corrupt')
   return {
     format: TEMPLATE_FORMAT,
     version: TEMPLATE_VERSION,
@@ -98,6 +104,7 @@ export function parseTemplate(json: string): Template {
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : '',
     sourceFile: typeof data.sourceFile === 'string' ? data.sourceFile : '',
     ...(data.sheets ? { sheets: data.sheets as string[] } : {}),
+    ...(data.headerRows ? { headerRows: data.headerRows as Record<string, number> } : {}),
     columns: data.columns as TemplateColumn[],
   }
 }

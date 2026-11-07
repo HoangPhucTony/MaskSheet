@@ -115,8 +115,8 @@ function columnModes(name: string, h: SheetHeaders, mapping: MappingFile): Map<n
 /**
  * Restore a workbook in place. A cell that is exactly one code / fake value gets its
  * original typed value back (number, date...); tokens inside longer text are replaced by
- * display text. Multiplied amount columns are divided by the factor and shifted date
- * columns are shifted back (see `columnModes`).
+ * display text. Below the header row, multiplied amount columns are divided by the factor
+ * and shifted date columns are shifted back (see `columnModes`).
  */
 export function unmaskWorkbook(
   wb: XLSX.WorkBook,
@@ -128,8 +128,10 @@ export function unmaskWorkbook(
   const factor = mapping.money?.factor ?? 1
   const offset = mapping.dates?.offsetDays ?? 0
 
-  const sheets = wb.SheetNames.map((name) => ({ name, h: headersOf(wb.Sheets[name]) }))
-  const total = sheets.reduce((n, s) => n + (s.h ? s.h.lastRow - s.h.headerRow + 1 : 0), 0)
+  // Sheets of the masked file keep the header row they were masked with; others are guessed.
+  const headerRowOf = (name: string) => (mapping.sheets?.includes(name) ? mapping.headerRows?.[name] : undefined)
+  const sheets = wb.SheetNames.map((name) => ({ name, h: headersOf(wb.Sheets[name], headerRowOf(name)) }))
+  const total = sheets.reduce((n, s) => n + (s.h ? s.h.lastRow - s.h.firstRow + 1 : 0), 0)
   let done = 0
 
   for (const { name, h } of sheets) {
@@ -137,7 +139,8 @@ export function unmaskWorkbook(
     const rows = rowsOf(wb.Sheets[name])
     const columnMode = columnModes(name, h, mapping)
 
-    for (let r = h.headerRow; r <= h.lastRow; r++) {
+    // From the first row: codes in titles or notes above the table are restored too.
+    for (let r = h.firstRow; r <= h.lastRow; r++) {
       const row = rows[r]
       if (row) {
         for (let c = 0; c < row.length; c++) {

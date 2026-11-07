@@ -2,6 +2,8 @@
 
 export function parseNumber(text: string): number | null {
   const s = text.replace(/\s/g, '')
+  // "0912345678", "007": a leading zero means an identifier (phone, ID, code), not an amount.
+  if (/^-?0\d/.test(s)) return null
   if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s)
   if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return Number(s.replace(/,/g, ''))
   if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'))
