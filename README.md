@@ -48,7 +48,7 @@ flowchart LR
 | 🎯 **Nhất quán** | Cùng một giá trị luôn ra cùng một mã, kể cả ở các sheet khác nếu cột đó cũng được chọn. AI vẫn đếm, nhóm, so sánh đúng. |
 | 🧰 **9 cách che** | Mã ẩn danh, dữ liệu giả, che một phần, xóa trắng, nhân hệ số, làm tròn, khoảng giá trị, dịch ngày, chỉ giữ tháng. |
 | 🪄 **Tự nhận diện cột** | Gợi ý loại dữ liệu từ tên cột (Họ tên, SĐT, CCCD…) và nội dung (email, SĐT Việt Nam, ngày tháng). |
-| 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn, mỗi sheet chọn riêng. Cột đã chọn hiển thị ngay "AI sẽ thấy gì". Bấm *Xem tiếp* để xem thêm dòng. |
+| 🖱️ **Chọn cột kiểu Excel** | File hiện dạng bảng tính; bấm thẳng vào tiêu đề cột (A, B, C…) để chọn, mỗi sheet chọn riêng (các tab sheet nằm ngay trên bảng, kèm số cột đã chọn). Cột đã chọn hiển thị ngay "AI sẽ thấy gì". Bấm *Xem tiếp* để xem thêm dòng. |
 | 🧾 **Dòng tiêu đề** | Tự bỏ qua tên báo cáo, dòng trống và dòng nhóm phía trên bảng; chọn lại dòng tiêu đề cho từng sheet nếu cần. Template nhớ lựa chọn này. |
 | 👀 **Xem trước trực tiếp** | Mỗi cách che có ví dụ thật lấy từ dữ liệu của bạn, chuyển nhanh giữa "AI sẽ thấy" và "Dữ liệu gốc". |
 | ↺ **Khôi phục từ text hoặc file** | Dán câu trả lời của AI hoặc tải file .xlsx/.csv AI trả về. |
@@ -80,16 +80,16 @@ flowchart LR
 
 1. **Che dữ liệu**
    - Mở **[MaskSheet](https://marksheet-two-beta.vercel.app/)** rồi kéo thả file `.xlsx`, `.xls` hoặc `.csv` vào (hoặc bấm *Thử với file mẫu*).
-   - **Bấm vào tiêu đề cột** (hoặc bất kỳ ô nào) trên bảng để chọn cột cần ẩn danh, giống chọn cột trong Excel. Bấm lại cột đang chọn để bỏ chọn. Hoặc bấm *Chọn theo gợi ý*.
-   - Ở khung bên dưới bảng, chọn **loại dữ liệu** và **cách ẩn danh**. Mỗi cách đều có ví dụ thật lấy từ file của bạn.
+   - **Bấm vào tiêu đề cột** (hoặc bất kỳ ô nào) trên bảng để chọn cột cần ẩn danh, giống chọn cột trong Excel. Bấm lại cột đang chọn để bỏ chọn. Hoặc dùng nút **Chọn ▾** (chọn theo gợi ý, chọn tất cả, bỏ chọn).
+   - Các cột đã chọn được liệt kê trong thanh dính ở cuối trang (bấm *Xem danh sách* để mở). Ở đó, chọn **loại dữ liệu** và **cách ẩn danh**. Mỗi cách đều có ví dụ thật lấy từ file của bạn.
    - Bảng hiển thị luôn *AI sẽ thấy gì*. Kiểm tra xong thì bấm **Che dữ liệu**.
-   - Muốn dùng lại cho các file sau: bấm **Lưu template**. Lần sau chọn template (hoặc tải file `.template.json`) trước khi tải file lên.
+   - Muốn dùng lại cho các file sau: bấm **Lưu template**. Lần sau bấm **Dùng template ▾** (hoặc tải file `.template.json`) trước khi tải file lên.
    - Tải về 2 file:
      - `…_masked.xlsx`: gửi file này cho AI.
      - `…_mapping_PRIVATE.json`: giữ riêng, **không gửi AI**.
 2. **Gửi cho AI:** tải file `_masked` lên ChatGPT, Claude hay Gemini và đặt câu hỏi như bình thường.
 3. **Khôi phục**
-   - Mở tab **Khôi phục** và tải file mapping lên.
+   - Ngay sau khi che, bấm **Khôi phục câu trả lời →**: tab **Khôi phục** mở sẵn với mapping vừa tạo, không cần tải lại. Ở lần dùng sau, mở tab **Khôi phục** và tải file mapping đã lưu lên.
    - Dán câu trả lời của AI, hoặc tải file kết quả AI trả về.
    - Nhận lại văn bản hoặc file với giá trị thật.
 
@@ -214,9 +214,9 @@ All amount columns share one factor and all date columns share one offset, so cr
 
 ### How to use
 
-1. **Mask:** open a file, click the sensitive columns in the spreadsheet, pick a type and method below it, then click **Mask data**. Download `_masked.xlsx` (for the AI) and `_mapping_PRIVATE.json` (keep it private).
+1. **Mask:** open a file, click the sensitive columns in the spreadsheet (sheet tabs sit above it; chosen columns are listed in the sticky bar, *Show list*), pick a type and method there, then click **Mask data**. Templates are under **Use a template ▾**. Download `_masked.xlsx` (for the AI) and `_mapping_PRIVATE.json` (keep it private).
 2. **Ask AI:** upload the masked file to your AI assistant.
-3. **Restore:** in the **Restore** tab, load the mapping, then paste the AI's answer or upload its result file.
+3. **Restore:** click **Restore the answer →** right after masking and the **Restore** tab opens with the fresh mapping (no re-upload in that session; keep the downloaded mapping file for later). Otherwise, in the **Restore** tab, load the mapping, then paste the AI's answer or upload its result file.
 
 ### Privacy
 
