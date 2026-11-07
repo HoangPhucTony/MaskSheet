@@ -8,24 +8,14 @@ export const en: Dict = {
   footer: 'Open source (MIT) · No data collected',
 
   heroTitle: 'Give your spreadsheet to AI without leaking data',
-  heroSubtitle:
-    'Replace sensitive values with anonymous codes or fake data, send the file to ChatGPT, Claude or Gemini, then turn the answer back into real values in one click.',
   badgeLocal: '100% in your browser',
   badgeLocalHint: 'Everything runs as JavaScript on your device. No server ever receives your file.',
   badgeNoUpload: 'No upload, no tracking',
   badgeNoUploadHint:
     'The page is locked with a Content-Security-Policy: the browser blocks every connection to other domains. You can even go offline once it has loaded.',
-  badgeOpen: 'Open source',
-  badgeOpenHint: 'MIT licensed. Audit the code yourself or host your own copy.',
-  how1Title: 'Mask',
-  how1Desc: 'Pick sensitive columns and a method. Download the masked file + the mapping file.',
-  how1Hint: 'The same value always gets the same code, so the AI can still count, group and compare.',
-  how2Title: 'Ask AI',
-  how2Desc: 'Give the masked file to the AI and analyse as usual.',
-  how2Hint: 'Only send the _masked file. Never send _mapping_PRIVATE.json.',
-  how3Title: 'Restore',
-  how3Desc: 'Paste the answer or upload the result file → every code becomes real again.',
-  how3Hint: 'Open the "Restore" tab, load the mapping file, then paste the AI answer or upload its file.',
+  howItWorks: 'How it works',
+  howItWorksHint:
+    '1. Mask: pick sensitive columns and a method, download the masked file + the mapping file. 2. Ask AI: give the masked file to the AI and analyse as usual. 3. Restore: paste the answer or upload the result file, every code becomes real again.',
 
   tabMask: 'Mask',
   tabUnmask: 'Restore',

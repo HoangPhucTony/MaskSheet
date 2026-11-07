@@ -7,24 +7,14 @@ export const vi = {
 
   // Hero
   heroTitle: 'Đưa Excel cho AI mà không lộ dữ liệu',
-  heroSubtitle:
-    'Thay thông tin nhạy cảm bằng mã ẩn danh hoặc dữ liệu giả, gửi cho ChatGPT, Claude hay Gemini, rồi khôi phục câu trả lời về giá trị thật chỉ với một cú nhấp.',
   badgeLocal: '100% trên trình duyệt',
   badgeLocalHint: 'Toàn bộ xử lý chạy bằng JavaScript ngay trên máy bạn. Không có server nào nhận file.',
   badgeNoUpload: 'Không upload, không theo dõi',
   badgeNoUploadHint:
     'Trang được khóa bằng Content-Security-Policy: trình duyệt chặn mọi kết nối tới domain khác. Bạn có thể ngắt mạng sau khi trang tải xong.',
-  badgeOpen: 'Mã nguồn mở',
-  badgeOpenHint: 'Giấy phép MIT. Bạn có thể tự kiểm tra mã nguồn hoặc tự host.',
-  how1Title: 'Che',
-  how1Desc: 'Chọn cột nhạy cảm và cách che. Tải về file đã che + file mapping.',
-  how1Hint: 'Cùng một giá trị luôn ra cùng một mã, nên AI vẫn đếm, nhóm, so sánh được như dữ liệu thật.',
-  how2Title: 'Gửi AI',
-  how2Desc: 'Đưa file đã che cho AI phân tích như bình thường.',
-  how2Hint: 'Chỉ gửi file _masked. Tuyệt đối không gửi file _mapping_PRIVATE.json.',
-  how3Title: 'Khôi phục',
-  how3Desc: 'Dán câu trả lời hoặc tải file kết quả → mọi mã về lại giá trị thật.',
-  how3Hint: 'Mở tab "Khôi phục", tải file mapping lên, rồi dán câu trả lời của AI hoặc tải file AI trả về.',
+  howItWorks: 'Cách hoạt động',
+  howItWorksHint:
+    '1. Che: chọn cột nhạy cảm và cách che, tải về file đã che + file mapping. 2. Gửi AI: đưa file đã che cho AI phân tích như bình thường. 3. Khôi phục: dán câu trả lời hoặc tải file kết quả, mọi mã về lại giá trị thật.',
 
   tabMask: 'Che dữ liệu',
   tabUnmask: 'Khôi phục',
@@ -45,7 +35,7 @@ export const vi = {
   step2: 'Chọn cột và cách che',
   step2Hint:
     'Tick các cột cần che, chọn loại dữ liệu và cách che. Mỗi sheet chọn riêng; cột cùng tiền tố dùng chung bảng mã nên dữ liệu vẫn khớp với nhau.',
-  step3: 'Tải kết quả',
+  step3: 'Tải về',
   step3Hint: 'Tải cả 2 file. File đã che dùng để gửi AI, file mapping giữ lại để khôi phục.',
   sheetsInfo: '{sheets} sheet · {rows} dòng dữ liệu',
   selectSuggested: 'Chọn theo gợi ý',

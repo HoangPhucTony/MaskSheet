@@ -1,8 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
-  ArrowRightIcon,
   CloudOffIcon,
-  CodeIcon,
   EyeOffIcon,
   GlobeIcon,
   LockIcon,
@@ -36,30 +34,11 @@ function Badge({ icon, label, hint }: { icon: ReactNode; label: string; hint: st
   )
 }
 
-function HowStep({ n, icon, title, desc, hint }: { n: number; icon: ReactNode; title: string; desc: string; hint: string }) {
-  return (
-    <Tooltip content={hint} side="bottom" className="flex-1">
-      <div
-        tabIndex={0}
-        className="group w-full cursor-help rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-left shadow-xs backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-emerald-500 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-emerald-800"
-      >
-        <div className="mb-2 flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-lg text-emerald-700 transition group-hover:bg-emerald-600 group-hover:text-white dark:bg-emerald-950 dark:text-emerald-300">
-            {icon}
-          </span>
-          <span className="text-xs font-semibold text-slate-400">0{n}</span>
-          <span className="font-semibold">{title}</span>
-        </div>
-        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">{desc}</p>
-      </div>
-    </Tooltip>
-  )
-}
-
 export function App() {
   const { t, lang, setLang } = useI18n()
   const [theme, toggleTheme] = useTheme()
   const [tab, setTab] = useState<Tab>('mask')
+  const [hasFile, setHasFile] = useState(false)
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip">
@@ -98,29 +77,20 @@ export function App() {
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16">
-        <section className="pt-10 pb-8 text-center sm:pt-14">
-          <h1 className="mx-auto max-w-3xl text-3xl leading-tight font-extrabold tracking-tight text-balance sm:text-5xl">
-            <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-300 dark:to-sky-400">
-              {t('heroTitle')}
-            </span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-pretty text-slate-600 sm:text-lg dark:text-slate-400">
-            {t('heroSubtitle')}
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Badge icon={<ShieldIcon />} label={t('badgeLocal')} hint={t('badgeLocalHint')} />
-            <Badge icon={<CloudOffIcon />} label={t('badgeNoUpload')} hint={t('badgeNoUploadHint')} />
-            <Badge icon={<CodeIcon />} label={t('badgeOpen')} hint={t('badgeOpenHint')} />
-          </div>
-
-          <div className="mt-8 flex flex-col items-stretch gap-3 md:flex-row md:items-center">
-            <HowStep n={1} icon={<EyeOffIcon />} title={t('how1Title')} desc={t('how1Desc')} hint={t('how1Hint')} />
-            <ArrowRightIcon className="hidden shrink-0 text-xl text-slate-300 md:block dark:text-slate-600" />
-            <HowStep n={2} icon={<SparkIcon />} title={t('how2Title')} desc={t('how2Desc')} hint={t('how2Hint')} />
-            <ArrowRightIcon className="hidden shrink-0 text-xl text-slate-300 md:block dark:text-slate-600" />
-            <HowStep n={3} icon={<RestoreIcon />} title={t('how3Title')} desc={t('how3Desc')} hint={t('how3Hint')} />
-          </div>
-        </section>
+        {(tab === 'unmask' || !hasFile) && (
+          <section className="pt-6 pb-5 text-center">
+            <h1 className="mx-auto max-w-3xl text-2xl leading-tight font-extrabold tracking-tight text-balance sm:text-3xl">
+              <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-300 dark:to-sky-400">
+                {t('heroTitle')}
+              </span>
+            </h1>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Badge icon={<ShieldIcon />} label={t('badgeLocal')} hint={t('badgeLocalHint')} />
+              <Badge icon={<CloudOffIcon />} label={t('badgeNoUpload')} hint={t('badgeNoUploadHint')} />
+              <Badge icon={<SparkIcon />} label={t('howItWorks')} hint={t('howItWorksHint')} />
+            </div>
+          </section>
+        )}
 
         <div className="mb-6 flex justify-center">
           <div
@@ -149,7 +119,7 @@ export function App() {
 
         {/* Both panels stay mounted so switching tabs keeps their state. */}
         <div hidden={tab !== 'mask'}>
-          <MaskPanel />
+          <MaskPanel onHasFileChange={setHasFile} />
         </div>
         <div hidden={tab !== 'unmask'}>
           <UnmaskPanel />

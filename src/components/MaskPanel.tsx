@@ -139,11 +139,15 @@ function Stepper({ current }: { current: number }) {
   )
 }
 
-export function MaskPanel() {
+export function MaskPanel({ onHasFileChange }: { onHasFileChange?: (hasFile: boolean) => void }) {
   const { t } = useI18n()
   const [stage, setStage] = useState<Stage>('empty')
   const [file, setFile] = useState<{ name: string; size: number } | null>(null)
   const [info, setInfo] = useState<WorkbookInfo | null>(null)
+  const hasFile = !!info && stage !== 'empty' && stage !== 'loading'
+  useEffect(() => {
+    onHasFileChange?.(hasFile)
+  }, [hasFile, onHasFileChange])
   const [configs, setConfigs] = useState<Record<string, ColumnConfig>>({})
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [activeSheet, setActiveSheet] = useState(0)
