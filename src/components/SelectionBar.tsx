@@ -40,6 +40,8 @@ export function SelectionBar({
 }: Props) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+  // Adjust state during render: an empty selection collapses the list, so a later selection starts collapsed.
+  if (open && selected.length === 0) setOpen(false)
   const showList = open && selected.length > 0 && !masking
 
   const groups: { sheet: string; cols: ColumnInfo[] }[] = []
